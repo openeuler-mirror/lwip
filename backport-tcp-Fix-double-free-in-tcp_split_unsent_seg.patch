@@ -1,0 +1,24 @@
+From e80d4ff2cc5f8f864e9e996c72b47ebefd2a5175 Mon Sep 17 00:00:00 2001
+From: Erik Ekman <erik@kryo.se>
+Date: Fri, 19 Jun 2020 15:00:25 +0200
+Subject: [PATCH] tcp: Fix double free in tcp_split_unsent_seg()
+Fixes bug #57377 (found by Hiromasa Ito).
+Conflict: NA
+Reference: https://git.savannah.gnu.org/cgit/lwip.git/commit/?id=e80d4ff2cc5f8f864e9e996c72b47ebefd2a5175
+---
+ src/core/tcp_out.c | 1 +
+ 1 file changed, 1 insertion(+)
+diff --git a/src/core/tcp_out.c b/src/core/tcp_out.c
+index bfb033b1..d9d1b57b 100644
+--- a/src/core/tcp_out.c
++++ b/src/core/tcp_out.c
+@@ -913,6 +913,7 @@ tcp_split_unsent_seg(struct tcp_pcb *pcb, u16_t split)
+ 
+   seg = tcp_create_segment(pcb, p, remainder_flags, lwip_ntohl(useg->tcphdr->seqno) + split, optflags);
+   if (seg == NULL) {
++    p = NULL; /* Freed by tcp_create_segment */
+     LWIP_DEBUGF(TCP_OUTPUT_DEBUG | LWIP_DBG_LEVEL_SERIOUS,
+                 ("tcp_split_unsent_seg: could not create new TCP segment\n"));
+     goto memerr;
+-- 
+2.28.0.windows.1
