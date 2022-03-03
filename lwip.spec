@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 2
+Release: 3
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
@@ -24,6 +24,7 @@ Patch9011:  0012-fix-incomplete-resource-release-in-lwip-close.patch
 Patch9012:  0013-remove-gazelle-syscall-thread.patch
 Patch9013:  0014-fix-some-compile-errors.patch
 Patch9014:  0015-fix-tcp-port-alloc-issue.patch
+Patch9015:  0016-lstack-support-mysql-mode.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -53,6 +54,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9012 -p1
 %patch9013 -p1
 %patch9014 -p1
+%patch9015 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -68,6 +70,10 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Thu Feb 24 2022 jiangheng<jiangheng12@huawei.com> - 2.1.3-3
+- remove kernel socket interface
+- support the mode that listen and accept thread be separaten
+
 * Fri Dec 31 2021 jiangheng<jiangheng12@huawei.com> - 2.1.3-2
 - adapt to lstack
 
