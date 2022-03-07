@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 4
+Release: 5
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
@@ -26,6 +26,7 @@ Patch9013:  0014-fix-some-compile-errors.patch
 Patch9014:  0015-fix-tcp-port-alloc-issue.patch
 Patch9015:  0016-lstack-support-mysql-mode.patch
 Patch9016:  0017-support-REUSEPOR-option.patch
+Patch9017:  0018-exec-gazelle_init_sock-before-read-event.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -57,6 +58,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9014 -p1
 %patch9015 -p1
 %patch9016 -p1
+%patch9017 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -72,6 +74,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Mon Mar 07 2022 jiangheng<jiangheng12@huawei.com> - 2.1.3-5
+- exec gazelle_sock_init before read event
+
 * Thu Mar 03 2022 jiangheng<jiangheng12@huawei.com> - 2.1.3-4
 - support REUSEPOR option
 - fix rpc msg too much
