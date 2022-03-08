@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 6
+Release: 7
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
@@ -28,6 +28,7 @@ Patch9015:  0016-lstack-support-mysql-mode.patch
 Patch9016:  0017-support-REUSEPOR-option.patch
 Patch9017:  0018-exec-gazelle_init_sock-before-read-event.patch
 Patch9018:  0019-gazelle-reduce-copy-in-send.patch
+Patch9019:  0020-remove-chose_dlsym_handle-function-set-handle-to-RTL.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -56,6 +57,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Mon Mar 07 2022 jiangheng<jiangheng12@huawei.com> - 2.1.3-7
+- remove chose_dlsym_handle function as it is redundant
+
 * Mon Mar 07 2022 wu-changsheng<wuchangsheng2@huawei.com> - 2.1.3-6
 - gazelle reduce copy in send
 
