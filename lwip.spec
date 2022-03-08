@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 5
+Release: 6
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
@@ -27,6 +27,7 @@ Patch9014:  0015-fix-tcp-port-alloc-issue.patch
 Patch9015:  0016-lstack-support-mysql-mode.patch
 Patch9016:  0017-support-REUSEPOR-option.patch
 Patch9017:  0018-exec-gazelle_init_sock-before-read-event.patch
+Patch9018:  0019-gazelle-reduce-copy-in-send.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -38,27 +39,8 @@ ExclusiveArch: x86_64 aarch64
 lwip is a small independent implementation of the TCP/IP protocol suite.
 
 %prep
-%setup -n %{name}-%{version} -q
+%autosetup -n %{name}-%{version} -p1
 find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
-
-%patch9000 -p1
-%patch9001 -p1
-%patch9002 -p1
-%patch9003 -p1
-%patch9004 -p1
-%patch9005 -p1
-%patch9006 -p1
-%patch9007 -p1
-%patch9008 -p1
-%patch9009 -p1
-%patch9010 -p1
-%patch9011 -p1
-%patch9012 -p1
-%patch9013 -p1
-%patch9014 -p1
-%patch9015 -p1
-%patch9016 -p1
-%patch9017 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -74,6 +56,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Mon Mar 07 2022 wu-changsheng<wuchangsheng2@huawei.com> - 2.1.3-6
+- gazelle reduce copy in send
+
 * Mon Mar 07 2022 jiangheng<jiangheng12@huawei.com> - 2.1.3-5
 - exec gazelle_sock_init before read event
 
