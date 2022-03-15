@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 8
+Release: 9
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
@@ -30,6 +30,7 @@ Patch9017:  0018-exec-gazelle_init_sock-before-read-event.patch
 Patch9018:  0019-gazelle-reduce-copy-in-send.patch
 Patch9019:  0020-remove-chose_dlsym_handle-function-set-handle-to-RTL.patch
 Patch9020:  0021-refactor-event-if-ring-is-full-the-node-is-added-to-.patch
+Patch9021:  0022-notify-app-that-sock-state-changes-to-CLOSE_WAIT.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -58,6 +59,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Tue Mar 15 2022 jiangheng<jiangheng12@huawei.com> - 2.1.3-9
+- notify app that sock state changes to CLOSE_WAIT
+
 * Tue Mar 15 2022 jiangheng<jiangheng12@huawei.com> - 2.1.3-8
 - refactor event,if ring is full, node is added to list
 
