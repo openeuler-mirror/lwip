@@ -4,18 +4,41 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 2
+Release: 3
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
 
-Patch0:  0001-add-makefile.patch
-Patch1:  backport-bug-54700-Unexpected-expiry-of-pending-ARP-table-ent.patch 
-Patch2:  backport-tcp-Fix-double-free-in-tcp_split_unsent_seg.patch  
-Patch3:  backport-tcp-fix-sequence-number-comparison.patch 
-Patch4:  backport-tcp-tighten-up-checks-for-received-SYN.patch 
+Patch6001:  backport-bug-54700-Unexpected-expiry-of-pending-ARP-table-ent.patch 
+Patch6002:  backport-tcp-Fix-double-free-in-tcp_split_unsent_seg.patch  
+Patch6003:  backport-tcp-fix-sequence-number-comparison.patch 
+Patch6004:  backport-tcp-tighten-up-checks-for-received-SYN.patch 
 
-BuildRequires: gcc-c++ dos2unix
+Patch9001:  0001-add-makefile.patch
+Patch9002:  0002-adapt-lstack.patch
+Patch9003:  0003-fix-the-occasional-coredump-when-the-lwip-exits.patch
+Patch9004:  0004-fix-error-of-deleting-conn-table-in-connect.patch
+Patch9005:  0005-syn-rcvd-state-reg-conn-into-conntable.patch
+Patch9006:  0006-fix-coredump-in-etharp.patch
+Patch9007:  0007-gazelle-fix-epoll_ctl-EPOLLET-mode-error.patch
+Patch9008:  0008-gazelle-fix-lwip_accept-memcpy-sockaddr-large.patch
+Patch9009:  0009-fix-stack-buffer-overflow-when-memcpy-addr.patch
+Patch9010:  0010-fix-the-incomplete-release-of-the-conntable.patch
+Patch9011:  0011-remove-gazelle-tcp-conn-func.patch
+Patch9012:  0012-fix-incomplete-resource-release-in-lwip-close.patch
+Patch9013:  0013-remove-gazelle-syscall-thread.patch
+Patch9014:  0014-fix-some-compile-errors.patch
+Patch9015:  0015-fix-tcp-port-alloc-issue.patch
+Patch9016:  0016-lstack-support-mysql-mode.patch
+Patch9017:  0017-support-REUSEPOR-option.patch
+Patch9018:  0018-exec-gazelle_init_sock-before-read-event.patch
+Patch9019:  0019-gazelle-reduce-copy-in-send.patch
+Patch9020:  0020-remove-chose_dlsym_handle-function-set-handle-to-RTL.patch
+Patch9021:  0021-refactor-event-if-ring-is-full-the-node-is-added-to-.patch
+Patch9022:  0022-notify-app-that-sock-state-changes-to-CLOSE_WAIT.patch
+Patch9023:  0023-refactor-event-and-checksum-offload-support.patch
+
+BuildRequires: gcc-c++ dos2unix dpdk-devel
 
 #Requires: 
 
@@ -28,11 +51,33 @@ lwip is a small independent implementation of the TCP/IP protocol suite.
 %setup -n %{name}-%{version} -q
 find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 
-%patch0 -p1
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
+%patch6001 -p1
+%patch6002 -p1
+%patch6003 -p1
+%patch6004 -p1
+%patch9001 -p1
+%patch9002 -p1
+%patch9003 -p1
+%patch9004 -p1
+%patch9005 -p1
+%patch9006 -p1
+%patch9007 -p1
+%patch9008 -p1
+%patch9009 -p1
+%patch9010 -p1
+%patch9011 -p1
+%patch9012 -p1
+%patch9013 -p1
+%patch9014 -p1
+%patch9015 -p1
+%patch9016 -p1
+%patch9017 -p1
+%patch9018 -p1
+%patch9019 -p1
+%patch9020 -p1
+%patch9021 -p1
+%patch9022 -p1
+%patch9023 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -48,7 +93,10 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
-* Mon Sep 06 2020 jiangheng<jiangheng12@huawei.com> - 2.1.2-2
+* Tue Jun 07 2022 xiusailong<xiusailong@huawei.com> - 2.1.2-3
+- support gazelle feature
+
+* Mon Sep 06 2021 jiangheng<jiangheng12@huawei.com> - 2.1.2-2
 - backport some patches from community
 
 * Mon Nov 30 2020 peanut_huang<huangliming5@huawei.com> - 2.1.2-1
