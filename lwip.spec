@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 3
+Release: 4
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -37,6 +37,7 @@ Patch9020:  0020-remove-chose_dlsym_handle-function-set-handle-to-RTL.patch
 Patch9021:  0021-refactor-event-if-ring-is-full-the-node-is-added-to-.patch
 Patch9022:  0022-notify-app-that-sock-state-changes-to-CLOSE_WAIT.patch
 Patch9023:  0023-refactor-event-and-checksum-offload-support.patch
+Patch9024:  0024-refactor-pkt-read-send-performance.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -78,6 +79,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9021 -p1
 %patch9022 -p1
 %patch9023 -p1
+%patch9024 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -93,6 +95,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Fri Jul 8 2022 xiusailong<xiusailong@huawei.com> - 2.1.2-4
+- refactor pkt read send performance
+
 * Tue Jun 07 2022 xiusailong<xiusailong@huawei.com> - 2.1.2-3
 - support gazelle feature
 
