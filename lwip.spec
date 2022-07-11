@@ -4,10 +4,13 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 11
+Release: 12
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
+
+Patch6001:  backport-tcp-fix-sequence-number-comparison.patch
+Patch6002:  backport-tcp-tighten-up-checks-for-received-SYN.patch
 
 Patch9000:  0001-add-makefile.patch
 Patch9001:  0002-adapt-lstack.patch
@@ -61,6 +64,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Fri Jul 8 2022 xiusailong<xiusailong@huawei.com> - 2.1.3-12
+- sync two patches from 20.03-LTS-SP1
+
 * Thu Jul 7 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-11
 - refactor refactor pkt read send performance
 
