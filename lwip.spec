@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 6
+Release: 7
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -40,6 +40,7 @@ Patch9023:  0023-refactor-event-and-checksum-offload-support.patch
 Patch9024:  0024-refactor-pkt-read-send-performance.patch
 Patch9025:  0025-del-redundant-wait_close-and-move-epoll_events-pos.patch
 Patch9026:  0026-modify-EISCONN-condition.patch
+Patch9027:  0027-per-thread-reassdata-variables.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -84,6 +85,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9024 -p1
 %patch9025 -p1
 %patch9026 -p1
+%patch9027 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -99,6 +101,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Thu Oct 6 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-7
+- per thread reassdata variables
+
 * Thu Sep 22 2022 zhujunhao<zhujunhao11@huawei.com> - 2.1.2-6
 - modify EISCONN path condition
   add in_send and send_flag value for gazelle
