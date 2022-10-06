@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 18
+Release: 19
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
@@ -42,6 +42,7 @@ Patch9026:  0027-modify-EISCONN-condition.patch
 Patch9027:  0028-per-thread-reassdata-variables.patch
 Patch9028:  0029-fix-EISCONN-err-and-remove-same-customized-modificat.patch
 Patch9029:  0030-refactor-tcp-new-port.patch
+Patch9030:  0031-refactor-add-event-limit-send-pkts-num.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -70,6 +71,10 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Thu Oct 6 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-19
+- refactor add event
+  limit send pkts num max 10
+
 * Thu Oct 6 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-18
 - fix multithread duplicate port num
   support select appropriate port num to rss same as nic
