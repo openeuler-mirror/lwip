@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 10
+Release: 11
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -44,6 +44,7 @@ Patch9027:  0027-per-thread-reassdata-variables.patch
 Patch9028:  0028-fix-EISCONN-err-and-remove-same-customized-modificat.patch
 Patch9029:  0029-refactor-tcp-new-port.patch
 Patch9030:  0030-refactor-add-event-limit-send-pkts-num.patch
+Patch9031:  0031-fix-free-pbuf-miss-data.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -92,6 +93,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9028 -p1
 %patch9029 -p1
 %patch9030 -p1
+%patch9031 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -107,6 +109,10 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Thu Oct 6 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-10
+- fix miss data due to free pbuf
+  close debug
+
 * Thu Oct 6 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-10
 - refactor add event
   limit send pkts num max 10
