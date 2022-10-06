@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 14
+Release: 15
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
@@ -38,6 +38,7 @@ Patch9022:  0023-refactor-event-and-checksum-offload-support.patch
 Patch9023:  0024-refactor-pkt-read-send-performance.patch
 Patch9024:  0025-Replace-gettid-with-syscall-SYS_gettid.patch
 Patch9025:  0026-del-redundant-wait_close-and-move-epoll_events-pos.patch
+Patch9026:  0027-modify-EISCONN-condition.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -66,6 +67,10 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Thu Oct 6 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-15
+- modify EISCONN path condition
+  add in_send and send_flag value in sock
+
 * Tue Jul 26 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-14
 - del redundant wait_close in lwip_sock
   move epoll_events into cache aligned area
