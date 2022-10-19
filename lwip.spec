@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 22
+Release: 23
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
@@ -46,6 +46,7 @@ Patch9030:  0031-refactor-add-event-limit-send-pkts-num.patch
 Patch9031:  0032-fix-free-pbuf-miss-data.patch
 Patch9032:  0033-alloc-socket-fail-clean-sock.patch
 Patch9033:  0034-add-accept4-and-epoll_create1.patch
+Patch9034:  0035-add-writev-and-readv.patch 
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -74,6 +75,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Wed Oct 19 2022 zhujunhao<zhujunhao11@huawei.com> - 2.1.3-23
+- add writev and readv
+
 * Sat Oct 15 2022 zhujunhao<zhujunhao11@huawei.com> - 2.1.3-22
 - add epoll_create1 and accetp4
 
