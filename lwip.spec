@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 12
+Release: 13
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -46,6 +46,7 @@ Patch9029:  0029-refactor-tcp-new-port.patch
 Patch9030:  0030-refactor-add-event-limit-send-pkts-num.patch
 Patch9031:  0031-fix-free-pbuf-miss-data.patch
 Patch9032:  0032-alloc-socket-fail-clean-sock.patch
+Patch9033:  0034-add-accept4-and-epoll_create1.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -96,6 +97,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9030 -p1
 %patch9031 -p1
 %patch9032 -p1
+%patch9033 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -111,10 +113,13 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
-* Tue Oct 11 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-11
+* Sat Oct 15 2022 zhujunhao<zhujunhao11@huawei.com> - 2.1.2-13
+- add epoll_create1 and accetp4
+
+* Tue Oct 11 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-12
 - alloc socket fail clean sock
 
-* Thu Oct 6 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-10
+* Thu Oct 6 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-11
 - fix miss data due to free pbuf
   close debug
 
