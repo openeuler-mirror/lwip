@@ -4,10 +4,10 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 25
+Release: 26
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
-Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.tar.gz
+Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
 
 Patch6001:  backport-tcp-fix-sequence-number-comparison.patch
 Patch6002:  backport-tcp-tighten-up-checks-for-received-SYN.patch
@@ -60,8 +60,48 @@ ExclusiveArch: x86_64 aarch64
 lwip is a small independent implementation of the TCP/IP protocol suite.
 
 %prep
-%autosetup -n %{name}-%{version} -p1
+%setup -n %{name}-%{version} -q
 find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
+
+%patch6001 -p1
+%patch6002 -p1
+%patch9000 -p1
+%patch9001 -p1
+%patch9002 -p1
+%patch9003 -p1
+%patch9004 -p1
+%patch9005 -p1
+%patch9006 -p1
+%patch9007 -p1
+%patch9008 -p1
+%patch9009 -p1
+%patch9010 -p1
+%patch9011 -p1
+%patch9012 -p1
+%patch9013 -p1
+%patch9014 -p1
+%patch9015 -p1
+%patch9016 -p1
+%patch9017 -p1
+%patch9018 -p1
+%patch9019 -p1
+%patch9020 -p1
+%patch9021 -p1
+%patch9022 -p1
+%patch9023 -p1
+%patch9024 -p1
+%patch9025 -p1
+%patch9026 -p1
+%patch9027 -p1
+%patch9028 -p1
+%patch9029 -p1
+%patch9030 -p1
+%patch9031 -p1
+%patch9032 -p1
+%patch9033 -p1
+%patch9034 -p1
+%patch9035 -p1
+%patch9036 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -77,6 +117,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Sat Nov 26 2022 jiangheng<jiangheng14@huawei.com> - 2.1.3-26
+- replace lwip-2.1.3.tar.gz to lwip-2.1.3.zip
+
 * Wed Nov 23 2022 jiangheng<jiangheng14@huawei.com> - 2.1.3-25
 - enable ARP QUEUE to avoid packet dropped
 
