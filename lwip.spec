@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 14
+Release: 15
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -48,6 +48,8 @@ Patch9031:  0031-fix-free-pbuf-miss-data.patch
 Patch9032:  0032-alloc-socket-fail-clean-sock.patch
 Patch9033:  0034-add-accept4-and-epoll_create1.patch
 Patch9034:  0035-add-writev-and-readv.patch
+Patch9035:  0036-add-tso.patch
+Patch9036:  0037-optimize-app-thread-write-buff-block.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -100,6 +102,8 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9032 -p1
 %patch9033 -p1
 %patch9034 -p1
+%patch9035 -p1
+%patch9036 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -115,6 +119,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Sat Dec 3 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-15
+- optimize app thread write buff block
+
 * Wed Oct 19 2022 zhujunhao<zhujunhao11@huawei.com> - 2.1.2-14
 - add writev and readv
 
