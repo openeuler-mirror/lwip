@@ -1,6 +1,6 @@
-From d5ad901ff2f12c69bb4c9ef97f20f6fb9413c068 Mon Sep 17 00:00:00 2001
+From 816a5b350a613d9da4e3d5b8d2c03026b8e0254c Mon Sep 17 00:00:00 2001
 From: wu-changsheng <wuchangsheng2@huawei.com>
-Date: Sat, 3 Dec 2022 21:53:49 +0800
+Date: Sat, 3 Dec 2022 23:54:25 +0800
 Subject: [PATCH] add tso
 
 ---
@@ -361,12 +361,12 @@ index e68d0bf..d9d2e71 100644
  };
  
 diff --git a/src/include/lwipopts.h b/src/include/lwipopts.h
-index 7459991..c27eef5 100644
+index a5add21..7c819d0 100644
 --- a/src/include/lwipopts.h
 +++ b/src/include/lwipopts.h
-@@ -169,6 +169,10 @@
+@@ -173,6 +173,10 @@
  
- #define ARP_TABLE_SIZE 512
+ #define ARP_QUEUE_LEN 32
  
 +#define MAX_PBUF_CHAIN_LEN 40
 +
