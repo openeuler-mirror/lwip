@@ -115,9 +115,6 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
-* Sat Dec 3 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-15
-- optimize app thread write buff block
-
 * Wed Oct 19 2022 zhujunhao<zhujunhao11@huawei.com> - 2.1.2-14
 - add writev and readv
 
