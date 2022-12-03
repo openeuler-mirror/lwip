@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 27
+Release: 28
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -49,6 +49,8 @@ Patch9033:  0034-add-accept4-and-epoll_create1.patch
 Patch9034:  0035-add-writev-and-readv.patch 
 Patch9035:  0036-add-fs-secure-compilation-option.patch
 Patch9036:  0037-enable-ARP-QUEUE-to-avoid-sync-packet-dropped.patch
+Patch9037:  0038-add-tso.patch
+Patch9038:  0039-optimize-app-thread-write-buff-block.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -102,6 +104,8 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9034 -p1
 %patch9035 -p1
 %patch9036 -p1
+%patch9037 -p1
+%patch9038 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -117,6 +121,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Sat Dec 3 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-28
+- add tso define
+
 * Thu Dec 01 2022 jiangheng<jiangheng14@huawei.com> - 2.1.3-27
 - remove lwip-2.1.3.tar.gz
 
