@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 30
+Release: 31
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -53,6 +53,8 @@ Patch9037:  0038-add-tso.patch
 Patch9038:  0039-optimize-app-thread-write-buff-block.patch
 Patch9039:  0040-add-huge-snd_buf.patch
 Patch9040:  0041-optimite-pcb-list-limit-send-size-and-ack-now.patch
+Patch9041:  0042-expand-recv-win.patch
+Patch9042:  0043-add-prefetch.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -110,6 +112,8 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9038 -p1
 %patch9039 -p1
 %patch9040 -p1
+%patch9041 -p1
+%patch9042 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -125,6 +129,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Sun Dec 18 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-31
+- expand rcv wnd size and add prefetch
+
 * Tue Dec 13 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-30
 - optimite pcb unsent and unacked list
   fast rexmit all pkts
