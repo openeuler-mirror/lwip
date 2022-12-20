@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 34
+Release: 35
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -135,6 +135,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Tue Dec 20 2022 kircher<majun65@huawei.com> - 2.1.3-35
+- fix the dataack is always lower than 256
+
 * Tue Dec 20 2022 kircher<majun65@huawei.com> - 2.1.3-34
 - add dataack when recv too many acks with data
 
