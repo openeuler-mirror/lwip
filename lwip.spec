@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 20
+Release: 21
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -56,6 +56,7 @@ Patch9039:  0040-optimite-pcb-list-limit-send-size-and-ack-now.patch
 Patch9040:  0041-expand-recv-win.patch
 Patch9041:  0042-add-prefetch.patch
 Patch9042:  0043-skip-unnecessary-tcp_route.patch
+Patch9043:  0044-add-variable-in-struct-sock.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -116,6 +117,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9040 -p1
 %patch9041 -p1
 %patch9042 -p1
+%patch9043 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -131,6 +133,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Tue Dec 20 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.2-21
+- add variable in struct sock
+
 * Mon Dec 19 2022 kircher<majun65@huawei.com> - 2.1.2-20
 - skip unnecessary tcp_route
 
