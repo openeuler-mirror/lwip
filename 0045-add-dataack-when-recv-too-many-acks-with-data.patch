@@ -1,0 +1,90 @@
+From 54dabe3635eee0206bf4cb749f4ab6cbc0a0d157 Mon Sep 17 00:00:00 2001
+From: kircher <majun65@huawei.com>
+Date: Tue, 20 Dec 2022 16:42:24 +0800
+Subject: [PATCH] add-dataack-when-recv-too-many-acks-with-data
+
+---
+ src/core/tcp_in.c      | 21 +++++++++++++++++++++
+ src/include/lwip/tcp.h |  1 +
+ src/include/lwipopts.h |  2 ++
+ 3 files changed, 24 insertions(+)
+
+diff --git a/src/core/tcp_in.c b/src/core/tcp_in.c
+index a5aebb4..7be7beb 100644
+--- a/src/core/tcp_in.c
++++ b/src/core/tcp_in.c
+@@ -1259,6 +1259,7 @@ tcp_receive(struct tcp_pcb *pcb)
+   s16_t m;
+   u32_t right_wnd_edge;
+   int found_dupack = 0;
++  int found_dataack = 0;
+ 
+   LWIP_ASSERT("tcp_receive: invalid pcb", pcb != NULL);
+   LWIP_ASSERT("tcp_receive: wrong state", pcb->state >= ESTABLISHED);
+@@ -1336,11 +1337,30 @@ tcp_receive(struct tcp_pcb *pcb)
+           }
+         }
+       }
++      /* fast rexmit when receive too many acks with data */
++      if (TCP_SEQ_LT(ackno + 1, pcb->snd_nxt)) {
++        if (pcb->snd_wl2 + pcb->snd_wnd == right_wnd_edge) {
++          if (pcb->rtime >= 0) {
++            if (pcb->lastack == ackno) {
++              found_dataack = 1;
++              if ((u8_t)(pcb->dataacks + 1) > pcb->dataacks) {
++                ++pcb->dataacks;
++              }
++              if (pcb->dataacks > MAX_DATA_ACK_NUM) {
++                tcp_rexmit_fast(pcb);
++              }
++            }
++          }
++        }
++      }
+       /* If Clause (1) or more is true, but not a duplicate ack, reset
+        * count of consecutive duplicate acks */
+       if (!found_dupack) {
+         pcb->dupacks = 0;
+       }
++      if (!found_dataack) {
++        pcb->dataacks = 0;
++      }
+     } else if (TCP_SEQ_BETWEEN(ackno, pcb->lastack + 1, pcb->snd_nxt)) {
+       /* We come here when the ACK acknowledges new data. */
+       tcpwnd_size_t acked;
+@@ -1366,6 +1386,7 @@ tcp_receive(struct tcp_pcb *pcb)
+       /* Reset the fast retransmit variables. */
+       pcb->dupacks = 0;
+       pcb->lastack = ackno;
++      pcb->dataacks = 0;
+ 
+       /* Update the congestion control variables (cwnd and
+          ssthresh). */
+diff --git a/src/include/lwip/tcp.h b/src/include/lwip/tcp.h
+index 2a61776..bb9aabc 100644
+--- a/src/include/lwip/tcp.h
++++ b/src/include/lwip/tcp.h
+@@ -326,6 +326,7 @@ struct tcp_pcb {
+ 
+   /* fast retransmit/recovery */
+   u8_t dupacks;
++  u8_t dataacks;
+   u32_t lastack; /* Highest acknowledged seqno. */
+ 
+   /* congestion avoidance/control variables */
+diff --git a/src/include/lwipopts.h b/src/include/lwipopts.h
+index 907c630..405cf11 100644
+--- a/src/include/lwipopts.h
++++ b/src/include/lwipopts.h
+@@ -177,6 +177,8 @@
+ 
+ #define MIN_TSO_SEG_LEN 256
+ 
++#define MAX_DATA_ACK_NUM 256
++
+ /*  ---------------------------------------
+  *  -------      NIC offloads      --------
+  *  ---------------------------------------
+-- 
+2.33.0
+
