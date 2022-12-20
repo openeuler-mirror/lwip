@@ -1,16 +1,16 @@
-From 54dabe3635eee0206bf4cb749f4ab6cbc0a0d157 Mon Sep 17 00:00:00 2001
+From 710841b579e1be0f6428cb71e4ebb4c90694d9b3 Mon Sep 17 00:00:00 2001
 From: kircher <majun65@huawei.com>
-Date: Tue, 20 Dec 2022 16:42:24 +0800
-Subject: [PATCH] add-dataack-when-recv-too-many-acks-with-data
+Date: Tue, 20 Dec 2022 19:06:35 +0800
+Subject: [PATCH] add dataack when recv too many acks with data
 
 ---
- src/core/tcp_in.c      | 21 +++++++++++++++++++++
+ src/core/tcp_in.c      | 19 +++++++++++++++++++
  src/include/lwip/tcp.h |  1 +
  src/include/lwipopts.h |  2 ++
- 3 files changed, 24 insertions(+)
+ 3 files changed, 22 insertions(+)
 
 diff --git a/src/core/tcp_in.c b/src/core/tcp_in.c
-index a5aebb4..7be7beb 100644
+index a5aebb4..88b6428 100644
 --- a/src/core/tcp_in.c
 +++ b/src/core/tcp_in.c
 @@ -1259,6 +1259,7 @@ tcp_receive(struct tcp_pcb *pcb)
@@ -21,7 +21,7 @@ index a5aebb4..7be7beb 100644
  
    LWIP_ASSERT("tcp_receive: invalid pcb", pcb != NULL);
    LWIP_ASSERT("tcp_receive: wrong state", pcb->state >= ESTABLISHED);
-@@ -1336,11 +1337,30 @@ tcp_receive(struct tcp_pcb *pcb)
+@@ -1336,11 +1337,28 @@ tcp_receive(struct tcp_pcb *pcb)
            }
          }
        }
@@ -31,9 +31,7 @@ index a5aebb4..7be7beb 100644
 +          if (pcb->rtime >= 0) {
 +            if (pcb->lastack == ackno) {
 +              found_dataack = 1;
-+              if ((u8_t)(pcb->dataacks + 1) > pcb->dataacks) {
-+                ++pcb->dataacks;
-+              }
++              ++pcb->dataacks;
 +              if (pcb->dataacks > MAX_DATA_ACK_NUM) {
 +                tcp_rexmit_fast(pcb);
 +              }
@@ -52,7 +50,7 @@ index a5aebb4..7be7beb 100644
      } else if (TCP_SEQ_BETWEEN(ackno, pcb->lastack + 1, pcb->snd_nxt)) {
        /* We come here when the ACK acknowledges new data. */
        tcpwnd_size_t acked;
-@@ -1366,6 +1386,7 @@ tcp_receive(struct tcp_pcb *pcb)
+@@ -1366,6 +1384,7 @@ tcp_receive(struct tcp_pcb *pcb)
        /* Reset the fast retransmit variables. */
        pcb->dupacks = 0;
        pcb->lastack = ackno;
@@ -61,14 +59,14 @@ index a5aebb4..7be7beb 100644
        /* Update the congestion control variables (cwnd and
           ssthresh). */
 diff --git a/src/include/lwip/tcp.h b/src/include/lwip/tcp.h
-index 2a61776..bb9aabc 100644
+index 2a61776..97cb882 100644
 --- a/src/include/lwip/tcp.h
 +++ b/src/include/lwip/tcp.h
 @@ -326,6 +326,7 @@ struct tcp_pcb {
  
    /* fast retransmit/recovery */
    u8_t dupacks;
-+  u8_t dataacks;
++  u32_t dataacks;
    u32_t lastack; /* Highest acknowledged seqno. */
  
    /* congestion avoidance/control variables */
