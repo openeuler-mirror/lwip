@@ -1,16 +1,16 @@
-From bf16309bdb9c2571e91d50cec7b379d93559d573 Mon Sep 17 00:00:00 2001
+From 1aa27395a4c4b73b6db472c4ae75ed91637a11bf Mon Sep 17 00:00:00 2001
 From: kircher <majun65@huawei.com>
-Date: Tue, 20 Dec 2022 18:52:59 +0800
+Date: Wed, 21 Dec 2022 17:50:50 +0800
 Subject: [PATCH] add dataack when recv too many acks with data
 
 ---
- src/core/tcp_in.c      | 19 +++++++++++++++++++
+ src/core/tcp_in.c      | 22 ++++++++++++++++++++++
  src/include/lwip/tcp.h |  1 +
  src/include/lwipopts.h |  2 ++
- 3 files changed, 22 insertions(+)
+ 3 files changed, 25 insertions(+)
 
 diff --git a/src/core/tcp_in.c b/src/core/tcp_in.c
-index 78954bd..dcd564b 100644
+index 78954bd..35ec6d9 100644
 --- a/src/core/tcp_in.c
 +++ b/src/core/tcp_in.c
 @@ -1260,6 +1260,7 @@ tcp_receive(struct tcp_pcb *pcb)
@@ -21,7 +21,7 @@ index 78954bd..dcd564b 100644
  
    LWIP_ASSERT("tcp_receive: invalid pcb", pcb != NULL);
    LWIP_ASSERT("tcp_receive: wrong state", pcb->state >= ESTABLISHED);
-@@ -1337,11 +1338,28 @@ tcp_receive(struct tcp_pcb *pcb)
+@@ -1337,11 +1338,31 @@ tcp_receive(struct tcp_pcb *pcb)
            }
          }
        }
@@ -33,7 +33,10 @@ index 78954bd..dcd564b 100644
 +              found_dataack = 1;
 +              ++pcb->dataacks;
 +              if (pcb->dataacks > MAX_DATA_ACK_NUM) {
-+                tcp_rexmit_fast(pcb);
++                if (tcp_rexmit(pcb) == ERR_OK) {
++                  pcb->rtime = 0;
++                  pcb->dataacks = 0;
++                }
 +              }
 +            }
 +          }
@@ -50,7 +53,7 @@ index 78954bd..dcd564b 100644
      } else if (TCP_SEQ_BETWEEN(ackno, pcb->lastack + 1, pcb->snd_nxt)) {
        /* We come here when the ACK acknowledges new data. */
        tcpwnd_size_t acked;
-@@ -1367,6 +1385,7 @@ tcp_receive(struct tcp_pcb *pcb)
+@@ -1367,6 +1388,7 @@ tcp_receive(struct tcp_pcb *pcb)
        /* Reset the fast retransmit variables. */
        pcb->dupacks = 0;
        pcb->lastack = ackno;
