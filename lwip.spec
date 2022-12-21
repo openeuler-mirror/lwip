@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 36
+Release: 37
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -58,6 +58,7 @@ Patch9042:  0043-add-prefetch.patch
 Patch9043:  0044-skip-unnecessary-tcp_route.patch
 Patch9044:  0045-add-variable-in-struct-sock.patch
 Patch9045:  0046-add-dataack-when-recv-too-many-acks-with-data.patch
+Patch9046:  0047-reduce-struct-pbuf-size.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -120,6 +121,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9043 -p1
 %patch9044 -p1
 %patch9045 -p1
+%patch9046 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -135,6 +137,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Wed Dec 21 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-37
+- reduce struct pbuf size
+
 * Wed Dec 21 2022 kircher<majun65@huawei.com> - 2.1.3-36
 - do not update cwnd when send dataack
 
