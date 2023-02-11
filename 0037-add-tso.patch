@@ -269,7 +269,7 @@ index 7ebcfea..c4584ea 100644
 +        }
 +
 +        pre_pbuf = seg->p;
-+        next_seqno = seg_seqno + seg->len;
++        next_seqno = seg_seqno + TCP_TCPLEN(seg);
 +        seg = seg->next;
 +        pcb->unsent = seg;
 +        pbuf_chain_len++;
