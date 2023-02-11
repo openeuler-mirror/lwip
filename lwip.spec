@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 39
+Release: 40
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -141,6 +141,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Sat Feb 11 2023 majun<majun65@huawei.com> - 2.1.3-40
+- fix TSO snd_nxt incorrectly update
+
 * Fri Dec 30 2022 wuchangsheng<wuchangsheng2@huawei.com> - 2.1.3-39
 - expand recv mbox size
 
