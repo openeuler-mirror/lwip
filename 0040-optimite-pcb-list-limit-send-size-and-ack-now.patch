@@ -176,7 +176,7 @@ index f53750b..55053d8 100644
  
 +        send_len += seg->len;
          pre_pbuf = seg->p;
-         next_seqno = seg_seqno + seg->len;
+         next_seqno = seg_seqno + TCP_TCPLEN(seg);
          seg = seg->next;
 @@ -1519,8 +1520,11 @@ tcp_output(struct tcp_pcb *pcb)
  
