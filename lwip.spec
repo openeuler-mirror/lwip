@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 29
+Release: 30
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -62,6 +62,7 @@ Patch9045:  0046-reduce-struct-pbuf-size.patch
 Patch9046:  0047-listen-pcb-also-use-pcb_if.patch
 Patch9047:  0048-expand-recv-mbox-size.patch
 Patch9048:  0049-lwip-reuse-ip-port.patch
+Patch9049:  0050-lwip-add-need_tso_send.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -128,6 +129,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9046 -p1
 %patch9047 -p1
 %patch9048 -p1
+%patch9049 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -143,6 +145,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Tue Feb 21 2023 majun<majun65@huawei.com> - 2.1.2-30
+- add lwip need_tso_send
+
 * Tue Feb 14 2023 majun<majun65@huawei.com> - 2.1.2-29
 - add lwip reuse ip port
 
