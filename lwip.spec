@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 42
+Release: 43
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -63,6 +63,7 @@ Patch9047:  0048-listen-pcb-also-use-pcb_if.patch
 Patch9048:  0049-expand-recv-mbox-size.patch
 Patch9049:  0050-lwip-reuse-ip-port.patch
 Patch9050:  0051-lwip-add-need_tso_send.patch
+Patch9051:  0052-lwip_fnctl-only-support-F_SETFL-F_GETFL.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -130,6 +131,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9048 -p1
 %patch9049 -p1
 %patch9050 -p1
+%patch9051 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -145,6 +147,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Tue Wed 22 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-43
+- lwip_fnctl only suport F_SETFL,F_GETFL, other opt return 0 for compitable
+
 * Tue Feb 21 2023 majun<majun65@huawei.com> - 2.1.3-42
 - add lwip need_tso_send
 
