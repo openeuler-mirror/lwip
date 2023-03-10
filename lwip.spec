@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 44
+Release: 45
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -65,6 +65,7 @@ Patch9049:  0050-lwip-reuse-ip-port.patch
 Patch9050:  0051-lwip-add-need_tso_send.patch
 Patch9051:  0052-lwip_fnctl-only-support-F_SETFL-F_GETFL.patch
 Patch9052:  0053-cleancode-improve-lwipopts.h-readability.patch
+Patch9053:  0054-reduce-cpu-usage-when-send.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -134,6 +135,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9050 -p1
 %patch9051 -p1
 %patch9052 -p1
+%patch9053 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -149,6 +151,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Fri Mar 10 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-45
+- reduce cpu usage when send
+
 * Thu Mar 9 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-44
 - cleancode: improve lwipopts.h readability
 
