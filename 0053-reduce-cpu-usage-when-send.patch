@@ -1,0 +1,32 @@
+From 065ce96161dd13655befe0b300213213da9db777 Mon Sep 17 00:00:00 2001
+From: jiangheng12 <jiangheng14@huawei.com>
+Date: Fri, 10 Mar 2023 20:31:26 +0800
+Subject: [PATCH] reduce cpu usage when send
+
+---
+ src/include/lwipsock.h | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/include/lwipsock.h b/src/include/lwipsock.h
+index e0a5edc..399b701 100644
+--- a/src/include/lwipsock.h
++++ b/src/include/lwipsock.h
+@@ -33,6 +33,7 @@
+ #ifndef __LWIPSOCK_H__
+ #define __LWIPSOCK_H__
+ 
++#include <semaphore.h>
+ #include <stdbool.h>
+ #include "lwip/opt.h"
+ #include "lwip/api.h"
+@@ -111,6 +112,7 @@ struct lwip_sock {
+   struct list_node send_list;
+   struct pbuf *send_lastdata;
+   struct pbuf *send_pre_del;
++  sem_t snd_ring_sem;
+ 
+   char pad3 __rte_cache_aligned;
+   /* nerver change */
+-- 
+2.23.0
+
