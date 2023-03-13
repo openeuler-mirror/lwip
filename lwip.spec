@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 45
+Release: 46
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -66,6 +66,7 @@ Patch9050:  0051-lwip-add-need_tso_send.patch
 Patch9051:  0052-lwip_fnctl-only-support-F_SETFL-F_GETFL.patch
 Patch9052:  0053-cleancode-improve-lwipopts.h-readability.patch
 Patch9053:  0054-reduce-cpu-usage-when-send.patch
+Patch9054:  0055-add-pbuf-lock-when-aggregate-pbuf.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -136,6 +137,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9051 -p1
 %patch9052 -p1
 %patch9053 -p1
+%patch9054 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -151,6 +153,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Mon Mar 13 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-46
+- use pbuf lock when aggregate pbuf
+
 * Fri Mar 10 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-45
 - reduce cpu usage when send
 
