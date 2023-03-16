@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 47
+Release: 48
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -46,7 +46,7 @@ Patch9030:  0031-refactor-add-event-limit-send-pkts-num.patch
 Patch9031:  0032-fix-free-pbuf-miss-data.patch
 Patch9032:  0033-alloc-socket-fail-clean-sock.patch
 Patch9033:  0034-add-accept4-and-epoll_create1.patch
-Patch9034:  0035-add-writev-and-readv.patch 
+Patch9034:  0035-add-writev-and-readv.patch
 Patch9035:  0036-add-fs-secure-compilation-option.patch
 Patch9036:  0037-enable-ARP-QUEUE-to-avoid-sync-packet-dropped.patch
 Patch9037:  0038-add-tso.patch
@@ -68,6 +68,7 @@ Patch9052:  0053-cleancode-improve-lwipopts.h-readability.patch
 Patch9053:  0054-reduce-cpu-usage-when-send.patch
 Patch9054:  0055-add-pbuf-lock-when-aggregate-pbuf.patch
 Patch9055:  0056-fix-tso-small-packet-drop-in-kernel-server.patch
+Patch9056:  0057-same-node-gazellectl-a.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -140,6 +141,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9053 -p1
 %patch9054 -p1
 %patch9055 -p1
+%patch9056 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -155,6 +157,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Mon Mar 13 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-48
+- add same node ring & gazellectl -a
+
 * Mon Mar 13 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-47
 - fix tso small packet drop in kernel server
 
