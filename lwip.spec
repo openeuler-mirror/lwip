@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 48
+Release: 49
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -69,6 +69,7 @@ Patch9053:  0054-reduce-cpu-usage-when-send.patch
 Patch9054:  0055-add-pbuf-lock-when-aggregate-pbuf.patch
 Patch9055:  0056-fix-tso-small-packet-drop-in-kernel-server.patch
 Patch9056:  0057-same-node-gazellectl-a.patch
+Patch9057:  0058-lwip-send-recv-thread-bind-numa.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -142,6 +143,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9054 -p1
 %patch9055 -p1
 %patch9056 -p1
+%patch9057 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -157,6 +159,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Wed Mar 22 2023 kircher <majun65@huawei.com> - 2.1.3-49
+- lwip send recv thread bind numa
+
 * Mon Mar 13 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-48
 - add same node ring & gazellectl -a
 
