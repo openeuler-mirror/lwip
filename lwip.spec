@@ -69,6 +69,7 @@ Patch9052:  0053-reduce-cpu-usage-when-send.patch
 Patch9053:  0054-add-pbuf-lock-when-aggregate-pbuf.patch
 Patch9054:  0055-fix-tso-small-packet-drop-in-kernel-server.patch
 Patch9055:  0056-same-node-gazellectl-a.patch
+Patch9056:  0057-lwip-send-recv-thread-bind-numa.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -142,6 +143,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9053 -p1
 %patch9054 -p1
 %patch9055 -p1
+%patch9056 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -157,6 +159,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Tue Mar 21 2023 kircher <majun65@huawei.com> - 2.1.2-37
+- lwip send/recv thread bind numa
+
 * Mon Mar 13 2023 jiangheng <jiangheng14@huawei.com> - 2.1.2-36
 - add same node ring & gazellectl -a
 
