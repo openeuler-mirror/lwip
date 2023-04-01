@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.2
-Release: 36
+Release: 38
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -70,6 +70,7 @@ Patch9053:  0054-add-pbuf-lock-when-aggregate-pbuf.patch
 Patch9054:  0055-fix-tso-small-packet-drop-in-kernel-server.patch
 Patch9055:  0056-same-node-gazellectl-a.patch
 Patch9056:  0057-lwip-send-recv-thread-bind-numa.patch
+Patch9057:  0058-fix-last_unsent-last_unacked.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -144,6 +145,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9054 -p1
 %patch9055 -p1
 %patch9056 -p1
+%patch9057 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -159,6 +161,10 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Sat Apr 01 2023 jiangheng <jiangheng14@huawei.com> - 2.1.2-38
+- fix last_unsent/last_unacked error
+- fix send failed due to pcb->nrtx > TCP_MAXRTX
+
 * Tue Mar 21 2023 kircher <majun65@huawei.com> - 2.1.2-37
 - lwip send/recv thread bind numa
 
