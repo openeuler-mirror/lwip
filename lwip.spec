@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 50
+Release: 51
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -71,6 +71,7 @@ Patch9055:  0056-fix-tso-small-packet-drop-in-kernel-server.patch
 Patch9056:  0057-same-node-gazellectl-a.patch
 Patch9057:  0058-lwip-send-recv-thread-bind-numa.patch
 Patch9058:  0059-fix-last_unsent-last_unacked.patch
+Patch9059:  0060-lwip-add-udp-multicast.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -146,6 +147,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9056 -p1
 %patch9057 -p1
 %patch9058 -p1
+%patch9059 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -161,6 +163,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Fri May 12 2023 kircher <majun65@huawei.com> - 2.1.3-51
+- add udp multicast support in lwip
+
 * Sat Apr 01 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-50
 - fix last_unsent/last_unacked error
 - fix send failed due to pcb->nrtx > TCP_MAXRTX
