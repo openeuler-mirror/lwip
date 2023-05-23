@@ -1,0 +1,780 @@
+From 55cc351cc1b0e1fa021b410913e8876024a66c4b Mon Sep 17 00:00:00 2001
+From: Lemmy Huang <huangliming5@huawei.com>
+Date: Fri, 19 May 2023 08:59:43 +0800
+Subject: [PATCH 1/3] cleancode: remove perf
+
+Signed-off-by: Lemmy Huang <huangliming5@huawei.com>
+---
+ src/api/api_lib.c       |   2 -
+ src/api/api_msg.c       |   3 -
+ src/api/gazelle_dir.mk  |   2 +-
+ src/api/perf.c          | 182 ----------------------------------------
+ src/core/ipv4/ip4.c     |  14 ----
+ src/core/ipv6/ip6.c     |  10 ---
+ src/core/pbuf.c         |   4 -
+ src/core/tcp.c          |   1 -
+ src/core/tcp_in.c       |  24 ------
+ src/core/tcp_out.c      |  21 -----
+ src/core/udp.c          |  21 +----
+ src/include/arch/perf.h | 155 ----------------------------------
+ src/include/lwipopts.h  |   3 +-
+ 13 files changed, 5 insertions(+), 437 deletions(-)
+ delete mode 100644 src/api/perf.c
+ delete mode 100644 src/include/arch/perf.h
+
+diff --git a/src/api/api_lib.c b/src/api/api_lib.c
+index ba9f3c5..ffa14d6 100644
+--- a/src/api/api_lib.c
++++ b/src/api/api_lib.c
+@@ -1061,9 +1061,7 @@ netconn_write_vectors_partly(struct netconn *conn, struct netvector *vectors, u1
+   /* For locking the core: this _can_ be delayed on low memory/low send buffer,
+      but if it is, this is done inside api_msg.c:do_write(), so we can use the
+      non-blocking version here. */
+-  PERF_START(PERF_LAYER_TCP, PERF_POINT_TCP_DATA_SEND);
+   err = netconn_apimsg(lwip_netconn_do_write, &API_MSG_VAR_REF(msg));
+-  PERF_STOP_INCREASE_COUNT("lwip_netconn_do_write", PERF_LAYER_TCP);
+   if (err == ERR_OK) {
+     if (bytes_written != NULL) {
+       *bytes_written = API_MSG_VAR_REF(msg).msg.w.offset;
+diff --git a/src/api/api_msg.c b/src/api/api_msg.c
+index 0287c06..f0572af 100644
+--- a/src/api/api_msg.c
++++ b/src/api/api_msg.c
+@@ -1400,7 +1400,6 @@ lwip_netconn_do_connect(void *m)
+ #endif /* LWIP_UDP */
+ #if LWIP_TCP
+       case NETCONN_TCP:
+-        PERF_START(PERF_LAYER_TCP, PERF_POINT_TCP_SYN_SEND);
+         /* Prevent connect while doing any other action. */
+         if (msg->conn->state == NETCONN_CONNECT) {
+           err = ERR_ALREADY;
+@@ -1418,7 +1417,6 @@ lwip_netconn_do_connect(void *m)
+               err = ERR_INPROGRESS;
+             } else {
+               msg->conn->current_msg = msg;
+-              PERF_STOP_INCREASE_COUNT("lwip_netconn_do_connect", PERF_LAYER_TCP);
+               /* sys_sem_signal() is called from lwip_netconn_do_connected (or err_tcp()),
+                  when the connection is established! */
+ #if LWIP_TCPIP_CORE_LOCKING
+@@ -1432,7 +1430,6 @@ lwip_netconn_do_connect(void *m)
+             }
+           }
+         }
+-        PERF_STOP_INCREASE_COUNT("lwip_netconn_do_connect", PERF_LAYER_TCP);
+         break;
+ #endif /* LWIP_TCP */
+       default:
+diff --git a/src/api/gazelle_dir.mk b/src/api/gazelle_dir.mk
+index afbf863..c069a29 100644
+--- a/src/api/gazelle_dir.mk
++++ b/src/api/gazelle_dir.mk
+@@ -1,3 +1,3 @@
+-SRC = api_lib.c api_msg.c err.c netbuf.c netdb.c netifapi.c sockets.c tcpip.c perf.c posix_api.c sys_arch.c
++SRC = api_lib.c api_msg.c err.c netbuf.c netdb.c netifapi.c sockets.c tcpip.c posix_api.c sys_arch.c
+ 
+ $(eval $(call register_dir, api, $(SRC)))
+diff --git a/src/api/perf.c b/src/api/perf.c
+deleted file mode 100644
+index 1c2a273..0000000
+--- a/src/api/perf.c
++++ /dev/null
+@@ -1,182 +0,0 @@
+-/*
+- * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without modification,
+- * are permitted provided that the following conditions are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright notice,
+- *    this list of conditions and the following disclaimer.
+- * 2. Redistributions in binary form must reproduce the above copyright notice,
+- *    this list of conditions and the following disclaimer in the documentation
+- *    and/or other materials provided with the distribution.
+- * 3. The name of the author may not be used to endorse or promote products
+- *    derived from this software without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
+- * SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+- * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+- * OF SUCH DAMAGE.
+- *
+- * This file is part of the lwIP TCP/IP stack.
+- *
+- * Author: Huawei Technologies
+- *
+- */
+-
+-#include "arch/perf.h"
+-
+-#include <signal.h>
+-
+-#include <lwip/stats.h>
+-
+-#if LWIP_RECORD_PERF
+-
+-#define SIG_FUNC_NUM      3
+-
+-#define SIG_STATS_DISPLAY 38
+-#define SIG_PERF_BEGIN    39
+-#define SIG_PERF_END      40
+-
+-typedef void (*pSignalFunc) (int);
+-static void signal_stats_display(int s);
+-static void signal_perf_begin(int s);
+-static void signal_perf_end(int s);
+-
+-uint32_t g_record_perf;
+-__thread uint64_t g_timeTaken[PERF_POINT_END];
+-__thread int g_perfPoint[PERF_LAYER_END];
+-__thread struct timespec tvStart[PERF_LAYER_END];
+-volatile uint64_t g_perfMaxtime[PERF_POINT_END];
+-volatile uint64_t g_astPacketCnt[PERF_POINT_END];
+-volatile uint64_t g_astPacketProcTime[PERF_POINT_END];
+-
+-char *g_ppLayerName[PERF_POINT_END] = {
+-    "IP_RECV",
+-    "TCP_DATA_RECV",
+-    "UDP_PARTIAL",
+-    "TCP_SYN_RECV",
+-    "TCP_SYN_ACK_SEND",
+-    "TCP_ACK_RECV",
+-    "TCP_SYN_SEND",
+-    "TCP_SYN_ACK_RECV",
+-    "TCP_ACK_SEND",
+-    "TCP_DATA_SEND",
+-    "IP_SEND"
+-};
+-
+-static int gsig_arr[SIG_FUNC_NUM] = {
+-    SIG_STATS_DISPLAY,
+-    SIG_PERF_BEGIN,
+-    SIG_PERF_END
+-};
+-
+-static pSignalFunc g_Funcs[SIG_FUNC_NUM] = {
+-    signal_stats_display,
+-    signal_perf_begin,
+-    signal_perf_end,
+-};
+-
+-static void print_perf_data_and_reset()
+-{
+-    int i;
+-    printf("\n********* PERF DATA START*************\n");
+-    for (i = 0; i < PERF_POINT_END; i++) {
+-        printf("%-20s Total:     PacketProcTime: %-15"PRIu64", Maxtime: %-15"PRIu64", packetCnt: %-15"PRIu64"\n",
+-            g_ppLayerName[i], __sync_fetch_and_or(&g_astPacketProcTime[i], 0),
+-            __sync_fetch_and_or(&g_perfMaxtime[i], 0),
+-            __sync_fetch_and_or(&g_astPacketCnt[i], 0));
+-
+-        if (__sync_fetch_and_or(&g_astPacketProcTime[i], 0) && __sync_fetch_and_or(&g_astPacketCnt[i], 0)) {
+-        printf("%-20s Average:   PacketProcTime: %-15lf, MaxTime: %-15"PRIu64"\n", g_ppLayerName[i],
+-            (double)__sync_fetch_and_or(&g_astPacketProcTime[i], 0) / (double)__sync_fetch_and_or(&g_astPacketCnt[i], 0),
+-            __sync_or_and_fetch(&g_perfMaxtime[i], 0));
+-        }
+-
+-        __sync_fetch_and_and (&g_astPacketProcTime[i], 0);
+-        __sync_fetch_and_and (&g_astPacketCnt[i], 0);
+-        __sync_fetch_and_and (&g_perfMaxtime[i], 0);
+-    }
+-    printf("\n********* PERF DATA END*************\n");
+-}
+-
+-static void signal_stats_display(int s)
+-{
+-    struct sigaction s_test;
+-    printf("Received signal %d, stats display.\n", s);
+-    stats_display();
+-    s_test.sa_handler = (void *) signal_stats_display;
+-    if (sigemptyset(&s_test.sa_mask) != 0) {
+-        printf("sigemptyset failed.\n");
+-    }
+-    s_test.sa_flags = SA_RESETHAND;
+-    if (sigaction(s, &s_test, NULL) != 0) {
+-        printf("Could not register %d signal handler.\n", s);
+-    }
+-}
+-
+-static void signal_perf_begin(int s)
+-{
+-    struct sigaction s_test;
+-    printf("Received signal %d, perf_begin.\n", s);
+-    g_record_perf = 1;
+-    s_test.sa_handler = (void *) signal_perf_begin;
+-    if (sigemptyset(&s_test.sa_mask) != 0) {
+-        printf("sigemptyset failed.\n");
+-    }
+-    s_test.sa_flags = SA_RESETHAND;
+-    if (sigaction(s, &s_test, NULL) != 0) {
+-        printf("Could not register %d signal handler.\n", s);
+-    }
+-}
+-
+-static void signal_perf_end(int s)
+-{
+-    struct sigaction s_test;
+-    printf("Received signal %d, perf_end\n", s);
+-    g_record_perf = 0;
+-    print_perf_data_and_reset();
+-    s_test.sa_handler = (void *) signal_perf_end;
+-    if (sigemptyset(&s_test.sa_mask) != 0) {
+-        printf("sigemptyset failed.\n");
+-    }
+-    s_test.sa_flags = SA_RESETHAND;
+-    if (sigaction(s, &s_test, NULL) != 0) {
+-        printf("Could not register %d signal handler.\n", s);
+-    }
+-}
+-
+-int check_layer_point(int layer, int point)
+-{
+-    if (point == g_perfPoint[layer]) {
+-        return 1;
+-    }
+-    return 0;
+-}
+-
+-int perf_init(void)
+-{
+-    int i;
+-    struct sigaction s_test;
+-    for (i = 0; i < SIG_FUNC_NUM; i++) {
+-        s_test.sa_handler = (void *) g_Funcs[i];
+-        if (sigemptyset(&s_test.sa_mask) != 0) {
+-            printf("sigemptyset failed.\n");
+-            return 1;
+-        }
+-
+-        s_test.sa_flags = SA_RESETHAND;
+-        if (sigaction(gsig_arr[i], &s_test, NULL) != 0) {
+-            printf("Could not register %d signal handler.\n", gsig_arr[i]);
+-            return 1;
+-        }
+-    }
+-    return 0;
+-}
+-#endif
+diff --git a/src/core/ipv4/ip4.c b/src/core/ipv4/ip4.c
+index 1b70bb5..1496289 100644
+--- a/src/core/ipv4/ip4.c
++++ b/src/core/ipv4/ip4.c
+@@ -286,9 +286,7 @@ ip4_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inp)
+ {
+   struct netif *netif;
+ 
+-#ifndef LWIP_PERF
+   PERF_START;
+-#endif
+   LWIP_UNUSED_ARG(inp);
+ 
+   if (!ip4_canforward(p)) {
+@@ -350,9 +348,7 @@ ip4_forward(struct pbuf *p, struct ip_hdr *iphdr, struct netif *inp)
+   MIB2_STATS_INC(mib2.ipforwdatagrams);
+   IP_STATS_INC(ip.xmit);
+ 
+-#ifndef LWIP_PERF
+   PERF_STOP("ip4_forward");
+-#endif
+   /* don't fragment if interface has mtu set to 0 [loopif] */
+   if (netif->mtu && (p->tot_len > netif->mtu)) {
+     if ((IPH_OFFSET(iphdr) & PP_NTOHS(IP_DF)) == 0) {
+@@ -446,8 +442,6 @@ ip4_input(struct pbuf *p, struct netif *inp)
+ 
+   LWIP_ASSERT_CORE_LOCKED();
+ 
+-  PERF_START(PERF_LAYER_IP, PERF_POINT_IP_RECV);
+-
+   IP_STATS_INC(ip.recv);
+   MIB2_STATS_INC(mib2.ipinreceives);
+ 
+@@ -719,19 +713,13 @@ ip4_input(struct pbuf *p, struct netif *inp)
+       case IP_PROTO_UDPLITE:
+ #endif /* LWIP_UDPLITE */
+         MIB2_STATS_INC(mib2.ipindelivers);
+-        PERF_PAUSE(PERF_LAYER_IP);
+         udp_input(p, inp);
+-        PERF_RESUME(PERF_LAYER_IP, PERF_POINT_IP_RECV);
+         break;
+ #endif /* LWIP_UDP */
+ #if LWIP_TCP
+       case IP_PROTO_TCP:
+         MIB2_STATS_INC(mib2.ipindelivers);
+-        PERF_PAUSE(PERF_LAYER_IP);
+-        PERF_START(PERF_LAYER_TCP, PERF_POINT_TCP_RECV);
+         tcp_input(p, inp);
+-        PERF_STOP_INCREASE_COUNT("tcp_input", PERF_LAYER_TCP);
+-        PERF_RESUME(PERF_LAYER_IP, PERF_POINT_IP_RECV);
+         break;
+ #endif /* LWIP_TCP */
+ #if LWIP_ICMP
+@@ -780,8 +768,6 @@ ip4_input(struct pbuf *p, struct netif *inp)
+   ip4_addr_set_any(ip4_current_src_addr());
+   ip4_addr_set_any(ip4_current_dest_addr());
+ 
+-  PERF_STOP_INCREASE_COUNT("ip4_input", PERF_LAYER_IP);
+-
+   return ERR_OK;
+ }
+ 
+diff --git a/src/core/ipv6/ip6.c b/src/core/ipv6/ip6.c
+index 9d904ec..060d5f3 100644
+--- a/src/core/ipv6/ip6.c
++++ b/src/core/ipv6/ip6.c
+@@ -522,8 +522,6 @@ ip6_input(struct pbuf *p, struct netif *inp)
+ 
+   LWIP_ASSERT_CORE_LOCKED();
+ 
+-  PERF_START(PERF_LAYER_IP, PERF_POINT_IP_RECV);
+-
+   IP6_STATS_INC(ip6.recv);
+ 
+   /* identify the IP header */
+@@ -1071,18 +1069,12 @@ options_done:
+ #if LWIP_UDPLITE
+     case IP6_NEXTH_UDPLITE:
+ #endif /* LWIP_UDPLITE */
+-      PERF_PAUSE(PERF_LAYER_IP);
+       udp_input(p, inp);
+-      PERF_RESUME(PERF_LAYER_IP, PERF_POINT_IP_RECV);
+       break;
+ #endif /* LWIP_UDP */
+ #if LWIP_TCP
+     case IP6_NEXTH_TCP:
+-      PERF_PAUSE(PERF_LAYER_IP);
+-      PERF_START(PERF_LAYER_TCP, PERF_POINT_TCP_RECV);
+       tcp_input(p, inp);
+-      PERF_STOP_INCREASE_COUNT("tcp_input", PERF_LAYER_TCP);
+-      PERF_RESUME(PERF_LAYER_IP, PERF_POINT_IP_RECV);
+       break;
+ #endif /* LWIP_TCP */
+ #if LWIP_ICMP6
+@@ -1123,8 +1115,6 @@ ip6_input_cleanup:
+   ip6_addr_set_zero(ip6_current_src_addr());
+   ip6_addr_set_zero(ip6_current_dest_addr());
+ 
+-  PERF_STOP_INCREASE_COUNT("ip6_input", PERF_LAYER_IP);
+-
+   return ERR_OK;
+ }
+ 
+diff --git a/src/core/pbuf.c b/src/core/pbuf.c
+index 2385e57..aae6008 100644
+--- a/src/core/pbuf.c
++++ b/src/core/pbuf.c
+@@ -747,9 +747,7 @@ pbuf_free(struct pbuf *p)
+   }
+   LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_free(%p)\n", (void *)p));
+ 
+-#ifndef LWIP_PERF
+   PERF_START;
+-#endif
+ 
+   count = 0;
+   /* de-allocate all consecutive pbufs from the head of the chain that
+@@ -814,9 +812,7 @@ pbuf_free(struct pbuf *p)
+       p = NULL;
+     }
+   }
+-#ifndef LWIP_PERF
+   PERF_STOP("pbuf_free");
+-#endif
+   /* return number of de-allocated pbufs */
+   return count;
+ }
+diff --git a/src/core/tcp.c b/src/core/tcp.c
+index 538a664..3abf63b 100644
+--- a/src/core/tcp.c
++++ b/src/core/tcp.c
+@@ -558,7 +558,6 @@ tcp_close(struct tcp_pcb *pcb)
+     /* Set a flag not to receive any more data... */
+     tcp_set_flags(pcb, TF_RXCLOSED);
+   }
+-
+   /* ... and close */
+   return tcp_close_shutdown(pcb, 1);
+ }
+diff --git a/src/core/tcp_in.c b/src/core/tcp_in.c
+index 7e7d70a..3e635aa 100644
+--- a/src/core/tcp_in.c
++++ b/src/core/tcp_in.c
+@@ -146,9 +146,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
+   LWIP_ASSERT_CORE_LOCKED();
+   LWIP_ASSERT("tcp_input: invalid pbuf", p != NULL);
+ 
+-#ifndef LWIP_PERF
+   PERF_START;
+-#endif
+ 
+   TCP_STATS_INC(tcp.recv);
+   MIB2_STATS_INC(mib2.tcpinsegs);
+@@ -637,19 +635,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
+           goto aborted;
+         }
+         /* Try to send something out. */
+-#if LWIP_RECORD_PERF
+-        if (check_layer_point(PERF_LAYER_TCP, PERF_POINT_TCP_SYN_ACK_RECV)) {
+-          PERF_PAUSE(PERF_LAYER_TCP);
+-          PERF_START(PERF_LAYER_TCP, PERF_POINT_TCP_ACK_SEND);
+-        }
+-#endif
+         tcp_output(pcb);
+-#if LWIP_RECORD_PERF
+-        if (check_layer_point(PERF_LAYER_TCP, PERF_POINT_TCP_ACK_SEND)) {
+-          PERF_STOP_INCREASE_COUNT("tcp_in", PERF_LAYER_TCP);
+-          PERF_RESUME(PERF_LAYER_TCP, PERF_POINT_TCP_SYN_ACK_RECV);
+-        }
+-#endif
+ #if TCP_INPUT_DEBUG
+ #if TCP_DEBUG
+         tcp_debug_print_state(pcb->state);
+@@ -682,9 +668,7 @@ aborted:
+   }
+ 
+   LWIP_ASSERT("tcp_input: tcp_pcbs_sane()", tcp_pcbs_sane());
+-#ifndef LWIP_PERF
+   PERF_STOP("tcp_input");
+-#endif
+   return;
+ dropped:
+   TCP_STATS_INC(tcp.drop);
+@@ -753,7 +737,6 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
+     tcp_rst((const struct tcp_pcb *)pcb, ackno, seqno + tcplen, ip_current_dest_addr(),
+             ip_current_src_addr(), tcphdr->dest, tcphdr->src);
+   } else if (flags & TCP_SYN) {
+-    PERF_UPDATE_POINT(PERF_LAYER_TCP, PERF_POINT_TCP_SYN_RECV);
+     LWIP_DEBUGF(TCP_DEBUG, ("TCP connection request %"U16_F" -> %"U16_F".\n", tcphdr->src, tcphdr->dest));
+ #if TCP_LISTEN_BACKLOG
+     if (pcb->accepts_pending >= pcb->backlog) {
+@@ -832,18 +815,13 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
+     }
+ #endif
+ 
+-    PERF_PAUSE(PERF_LAYER_TCP);
+-    PERF_START(PERF_LAYER_TCP, PERF_POINT_TCP_SYN_ACK_SEND);
+     /* Send a SYN|ACK together with the MSS option. */
+     rc = tcp_enqueue_flags(npcb, TCP_SYN | TCP_ACK);
+     if (rc != ERR_OK) {
+       tcp_abandon(npcb, 0);
+-      PERF_RESUME(PERF_LAYER_TCP, PERF_POINT_TCP_SYN_RECV);
+       return;
+     }
+     tcp_output(npcb);
+-    PERF_STOP_INCREASE_COUNT("tcp_output", PERF_LAYER_TCP);
+-    PERF_RESUME(PERF_LAYER_TCP, PERF_POINT_TCP_SYN_RECV);
+   }
+   return;
+ }
+@@ -987,7 +965,6 @@ tcp_process(struct tcp_pcb *pcb)
+       /* received SYN ACK with expected sequence number? */
+       if ((flags & TCP_ACK) && (flags & TCP_SYN)
+           && (ackno == pcb->lastack + 1)) {
+-        PERF_UPDATE_POINT(PERF_LAYER_TCP, PERF_POINT_TCP_SYN_ACK_RECV);
+         pcb->rcv_nxt = seqno + 1;
+         pcb->rcv_ann_right_edge = pcb->rcv_nxt;
+         pcb->lastack = ackno;
+@@ -1066,7 +1043,6 @@ tcp_process(struct tcp_pcb *pcb)
+         /* expected ACK number? */
+         if (TCP_SEQ_BETWEEN(ackno, pcb->lastack + 1, pcb->snd_nxt)) {
+           pcb->state = ESTABLISHED;
+-          PERF_UPDATE_POINT(PERF_LAYER_TCP, PERF_POINT_TCP_ACK_RECV);
+           LWIP_DEBUGF(TCP_DEBUG, ("TCP connection established %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
+ #if LWIP_CALLBACK_API || TCP_LISTEN_BACKLOG
+           if (pcb->listener == NULL) {
+diff --git a/src/core/tcp_out.c b/src/core/tcp_out.c
+index 6250e6b..ebbc417 100644
+--- a/src/core/tcp_out.c
++++ b/src/core/tcp_out.c
+@@ -1708,11 +1708,6 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb, struct netif *netif
+   err_t err;
+   u16_t len;
+   u32_t *opts;
+-
+-#if LWIP_RECORD_PERF
+-  int tmpPoint;
+-#endif
+-
+ #if TCP_CHECKSUM_ON_COPY
+   int seg_chksum_was_swapped = 0;
+ #endif
+@@ -1911,9 +1906,6 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb, struct netif *netif
+ #endif /* CHECKSUM_GEN_TCP */
+   TCP_STATS_INC(tcp.xmit);
+ 
+-  PERF_PAUSE_RETURN_POINT(PERF_LAYER_TCP, tmpPoint);
+-  PERF_START(PERF_LAYER_IP, PERF_POINT_IP_SEND);
+-
+   NETIF_SET_HINTS(netif, &(pcb->netif_hints));
+ 
+   seg->p->pcb = pcb;
+@@ -1930,9 +1922,6 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb, struct netif *netif
+   }
+ #endif
+ 
+-  PERF_STOP_INCREASE_COUNT("ip_out", PERF_LAYER_IP);
+-  PERF_RESUME(PERF_LAYER_TCP, tmpPoint);
+-
+   return err;
+ }
+ 
+@@ -2371,10 +2360,6 @@ tcp_send_empty_ack(struct tcp_pcb *pcb)
+   u8_t optlen, optflags = 0;
+   u8_t num_sacks = 0;
+ 
+-#if LWIP_RECORD_PERF
+-  int tmpPoint;
+-#endif
+-
+   LWIP_ASSERT("tcp_send_empty_ack: invalid pcb", pcb != NULL);
+ 
+ #if LWIP_TCP_TIMESTAMPS
+@@ -2391,9 +2376,6 @@ tcp_send_empty_ack(struct tcp_pcb *pcb)
+   }
+ #endif
+ 
+-  PERF_PAUSE_RETURN_POINT(PERF_LAYER_TCP, tmpPoint);
+-  PERF_START(PERF_LAYER_IP, PERF_POINT_IP_SEND);
+-
+   p = tcp_output_alloc_header(pcb, optlen, 0, lwip_htonl(pcb->snd_nxt));
+   if (p == NULL) {
+     /* let tcp_fasttmr retry sending this ACK */
+@@ -2418,9 +2400,6 @@ tcp_send_empty_ack(struct tcp_pcb *pcb)
+     tcp_clear_flags(pcb, TF_ACK_DELAY | TF_ACK_NOW);
+   }
+ 
+-  PERF_STOP_INCREASE_COUNT("ip_out", PERF_LAYER_IP);
+-  PERF_RESUME(PERF_LAYER_TCP, tmpPoint);
+-
+   return err;
+ }
+ 
+diff --git a/src/core/udp.c b/src/core/udp.c
+index 9c3cdaa..d632de8 100644
+--- a/src/core/udp.c
++++ b/src/core/udp.c
+@@ -213,11 +213,7 @@ udp_input(struct pbuf *p, struct netif *inp)
+   LWIP_ASSERT("udp_input: invalid pbuf", p != NULL);
+   LWIP_ASSERT("udp_input: invalid netif", inp != NULL);
+ 
+-#if LWIP_RECORD_PERF
+-  PERF_START(PERF_LAYER_UDP, PERF_POINT_UDP);
+-#else
+-  //PERF_START;
+-#endif
++  PERF_START;
+ 
+   UDP_STATS_INC(udp.recv);
+ 
+@@ -438,12 +434,7 @@ udp_input(struct pbuf *p, struct netif *inp)
+     pbuf_free(p);
+   }
+ end:
+-#if LWIP_RECORD_PERF
+-  PERF_STOP_INCREASE_COUNT("udp_input", PERF_LAYER_UDP);
+-#else
+-  //PERF_STOP("udp_input");
+-#endif
+-
++  PERF_STOP("udp_input");
+   return;
+ #if CHECKSUM_CHECK_UDP
+ chkerr:
+@@ -453,13 +444,7 @@ chkerr:
+   UDP_STATS_INC(udp.drop);
+   MIB2_STATS_INC(mib2.udpinerrors);
+   pbuf_free(p);
+-
+-#if LWIP_RECORD_PERF
+-  PERF_STOP_INCREASE_COUNT("udp_input", PERF_LAYER_UDP);
+-#else
+-  //PERF_STOP("udp_input");
+-#endif
+-
++  PERF_STOP("udp_input");
+ #endif /* CHECKSUM_CHECK_UDP */
+ }
+ 
+diff --git a/src/include/arch/perf.h b/src/include/arch/perf.h
+deleted file mode 100644
+index e505da7..0000000
+--- a/src/include/arch/perf.h
++++ /dev/null
+@@ -1,155 +0,0 @@
+-/*
+- * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without modification,
+- * are permitted provided that the following conditions are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright notice,
+- *    this list of conditions and the following disclaimer.
+- * 2. Redistributions in binary form must reproduce the above copyright notice,
+- *    this list of conditions and the following disclaimer in the documentation
+- *    and/or other materials provided with the distribution.
+- * 3. The name of the author may not be used to endorse or promote products
+- *    derived from this software without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
+- * SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+- * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+- * OF SUCH DAMAGE.
+- *
+- * This file is part of the lwIP TCP/IP stack.
+- *
+- * Author: Huawei Technologies
+- *
+- */
+-
+-#ifndef LWIP_ARCH_PERF_H
+-#define LWIP_ARCH_PERF_H
+-
+-#include <time.h>
+-
+-#include "lwip/debug.h"
+-
+-#if LWIP_RECORD_PERF
+-enum PERF_POINT {
+-    PERF_POINT_IP_RECV,
+-    PERF_POINT_TCP_RECV,
+-    PERF_POINT_UDP,
+-    PERF_POINT_TCP_SYN_RECV,
+-    PERF_POINT_TCP_SYN_ACK_SEND,
+-    PERF_POINT_TCP_ACK_RECV,
+-    PERF_POINT_TCP_SYN_SEND,
+-    PERF_POINT_TCP_SYN_ACK_RECV,
+-    PERF_POINT_TCP_ACK_SEND,
+-    PERF_POINT_TCP_DATA_SEND,
+-    PERF_POINT_IP_SEND,
+-    PERF_POINT_END
+-};
+-
+-enum PERF_LAYER {
+-    PERF_LAYER_IP,
+-    PERF_LAYER_TCP,
+-    PERF_LAYER_UDP,
+-    PERF_LAYER_END
+-};
+-
+-extern uint32_t g_record_perf;
+-
+-extern __thread uint64_t g_timeTaken[PERF_POINT_END];
+-extern __thread int g_perfPoint[PERF_LAYER_END];
+-extern __thread struct timespec tvStart[PERF_LAYER_END];
+-
+-extern char *g_ppLayerName[PERF_POINT_END];
+-extern volatile uint64_t g_perfMaxtime[PERF_POINT_END];
+-extern volatile uint64_t g_astPacketCnt[PERF_POINT_END];
+-extern volatile uint64_t g_astPacketProcTime[PERF_POINT_END];
+-
+-#define PERF_START(layer, point) do {\
+-    g_perfPoint[(layer)] = (point);\
+-    LWIP_DEBUGF(PERF_OUTPUT_DEBUG, ("set point %d:%s\n", layer, g_ppLayerName[g_perfPoint[(layer)]]));\
+-    clock_gettime(CLOCK_MONOTONIC, &tvStart[(layer)]);\
+-    g_timeTaken[(point)] = 0;\
+-} while (0)
+-
+-#define PERF_UPDATE_POINT(layer, point) do {\
+-    LWIP_DEBUGF(PERF_OUTPUT_DEBUG, ("old point %d:%s\n", layer, g_ppLayerName[g_perfPoint[(layer)]]));\
+-    g_timeTaken[(point)] = g_timeTaken[g_perfPoint[(layer)]];\
+-    g_timeTaken[g_perfPoint[(layer)]] = 0;\
+-    g_perfPoint[(layer)] = (point);\
+-    LWIP_DEBUGF(PERF_OUTPUT_DEBUG, ("new point %d:%s\n", layer, g_ppLayerName[g_perfPoint[(layer)]]));\
+-} while (0)
+-
+-#define PERF_PAUSE(layer) do {\
+-    struct timespec tvEnd;\
+-    clock_gettime(CLOCK_MONOTONIC, &tvEnd);\
+-    LWIP_DEBUGF(PERF_OUTPUT_DEBUG, ("perf pause layer%d\n", layer));\
+-    g_timeTaken[g_perfPoint[(layer)]] += ((tvEnd.tv_sec - tvStart[(layer)].tv_sec) \
+-            * (1000000000UL) + (tvEnd.tv_nsec - tvStart[(layer)].tv_nsec));\
+-} while (0)
+-
+-#define PERF_PAUSE_RETURN_POINT(layer, pause_point) do {\
+-    struct timespec tvEnd;\
+-    clock_gettime(CLOCK_MONOTONIC, &tvEnd);\
+-    g_timeTaken[g_perfPoint[(layer)]] += ((tvEnd.tv_sec - tvStart[(layer)].tv_sec) \
+-            * (1000000000UL) + (tvEnd.tv_nsec - tvStart[(layer)].tv_nsec));\
+-    LWIP_DEBUGF(PERF_OUTPUT_DEBUG, ("perf pause point %d:%s\n", layer, g_ppLayerName[g_perfPoint[(layer)]]));\
+-    (pause_point) = g_perfPoint[(layer)];\
+-} while (0)
+-
+-
+-#define PERF_RESUME(layer, point) do {\
+-    LWIP_DEBUGF(PERF_OUTPUT_DEBUG, ("perf resule point %d:%s\n", layer, g_ppLayerName[point]));\
+-    clock_gettime(CLOCK_MONOTONIC, &tvStart[(layer)]);\
+-    g_perfPoint[(layer)] = (point);\
+-} while (0)
+-
+-
+-/* x is a prompt */
+-#define PERF_STOP_INCREASE_COUNT(x, layer) do {\
+-    if (g_record_perf)\
+-    {\
+-        struct timespec tvEnd;\
+-        int i = 2;\
+-        uint32_t oldValue = 0;\
+-        clock_gettime(CLOCK_MONOTONIC, &tvEnd);\
+-        g_timeTaken[g_perfPoint[(layer)]] += ((tvEnd.tv_sec - tvStart[(layer)].tv_sec) \
+-                * (1000000000UL) + (tvEnd.tv_nsec - tvStart[(layer)].tv_nsec));\
+-        while (i && !oldValue)\
+-        {\
+-            oldValue = __sync_or_and_fetch(&g_perfMaxtime[g_perfPoint[(layer)]], 0);\
+-            if (oldValue >= g_timeTaken[g_perfPoint[(layer)]])\
+-            {\
+-                break;\
+-            }\
+-            oldValue = __sync_val_compare_and_swap(&g_perfMaxtime[g_perfPoint[(layer)]],\
+-                    oldValue, g_timeTaken[g_perfPoint[(layer)]]);\
+-            i--;\
+-        }\
+-        __sync_fetch_and_add(&g_astPacketCnt[g_perfPoint[(layer)]], 1);\
+-        __sync_fetch_and_add(&g_astPacketProcTime[g_perfPoint[(layer)]], g_timeTaken[g_perfPoint[(layer)]]);\
+-        LWIP_DEBUGF(PERF_OUTPUT_DEBUG, ("Time for %s is: %ld\n",\
+-                g_ppLayerName[g_perfPoint[(layer)]], g_timeTaken[g_perfPoint[(layer)]]));\
+-    }\
+-} while (0)
+-
+-
+-int check_layer_point(int layer, int point);
+-int perf_init();
+-
+-#else
+-#define PERF_START(layer, point)         do {  } while (0)
+-#define PERF_UPDATE_POINT(layer, point)  do {  } while (0)
+-#define PERF_PAUSE(layer)                do {  } while (0)
+-#define PERF_PAUSE_RETURN_POINT(layer, pause_point) do {  } while (0)
+-#define PERF_RESUME(layer, point)           do {  } while (0)
+-#define PERF_STOP_INCREASE_COUNT(x, layer)  do {  } while (0)
+-#endif
+-
+-#endif /* LWIP_ARCH_PERF_H */
+diff --git a/src/include/lwipopts.h b/src/include/lwipopts.h
+index bcb0879..828a2d1 100644
+--- a/src/include/lwipopts.h
++++ b/src/include/lwipopts.h
+@@ -38,8 +38,7 @@
+    ---------- gazelle options ----------
+    -------------------------------------
+ */
+-#define LWIP_PERF 1
+-#define LWIP_RECORD_PERF 0
++#define LWIP_PERF 0
+ 
+ //#define LWIP_DEBUG 1
+ #define GAZELLE_USE_DPDK_LOG 1
+-- 
+2.22.0.windows.1
+
