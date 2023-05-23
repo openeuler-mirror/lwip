@@ -1,0 +1,172 @@
+From be14782607ce761736ba5188a8c03aa1e84ff45f Mon Sep 17 00:00:00 2001
+From: Lemmy Huang <huangliming5@huawei.com>
+Date: Thu, 18 May 2023 21:07:28 +0800
+Subject: [PATCH] cleancode: improving makefile readability
+
+Signed-off-by: Lemmy Huang <huangliming5@huawei.com>
+---
+ src/Makefile                         | 53 +++++++++++++++-------------
+ src/Printlog.mk                      | 15 ++++++++
+ src/api/{dir.mk => gazelle_dir.mk}   |  0
+ src/api/posix_api.c                  |  1 -
+ src/api/sys_arch.c                   |  1 -
+ src/core/{dir.mk => gazelle_dir.mk}  |  0
+ src/netif/{dir.mk => gazelle_dir.mk} |  0
+ 7 files changed, 44 insertions(+), 26 deletions(-)
+ create mode 100644 src/Printlog.mk
+ rename src/api/{dir.mk => gazelle_dir.mk} (100%)
+ rename src/core/{dir.mk => gazelle_dir.mk} (100%)
+ rename src/netif/{dir.mk => gazelle_dir.mk} (100%)
+
+diff --git a/src/Makefile b/src/Makefile
+index f445601..943ad30 100644
+--- a/src/Makefile
++++ b/src/Makefile
+@@ -4,22 +4,28 @@ ROOT_DIR := $(dir $(abspath $(LWIP_DIR)))
+ LWIP_INC = $(LWIP_DIR)/include
+ DPDK_INCLUDE_FILE ?= /usr/include/dpdk
+ 
+-SEC_FLAGS = -fstack-protector-strong -Werror -Wall -Wl,-z,relro,-z,now -Wl,-z,noexecstack -Wtrampolines -fPIC -D_FORTIRY_SOURCE=2 -O2
++include $(LWIP_DIR)/Printlog.mk
+ 
+ CC = gcc
+ AR = ar
+-OPTIMIZATION = -O3
+-INC = -I$(LWIP_DIR) \
+-      -I$(LWIP_INC) \
+-      -I$(DPDK_INCLUDE_FILE)
+-
+-CFLAGS = -g $(OPTIMIZATION) $(INC) $(SEC_FLAGS)
++OPTIMIZATION = -O2
+ ARFLAGS = crDP
+ 
++SEC_FLAGS = -fstack-protector-strong -Werror -Wall -Wl,-z,relro,-z,now -Wl,-z,noexecstack -Wtrampolines -fPIC -D_FORTIRY_SOURCE=2 
++CFLAGS = $(OPTIMIZATION) $(SEC_FLAGS)
++CFLAGS += -D__USE_GNU=1 -D_GNU_SOURCE=1 -DRTE_FORCE_INTRINSICS=1
++
+ ifeq ($(shell $(CC) -dumpmachine | cut -d"-" -f1), x86_64)
+     CFLAGS += -mssse3
+ endif
+ 
++INC = -I$(LWIP_DIR) \
++      -I$(LWIP_INC) \
++      -I$(DPDK_INCLUDE_FILE)
++
++$(info $(CC):$(CFLAGS))
++CFLAGS += $(INC)
++
+ SRCS =
+ DIRS = api core netif
+ 
+@@ -27,35 +33,34 @@ define register_dir
+ SRCS += $(patsubst %, $(1)/%, $(2))
+ endef
+ 
+-include $(patsubst %, %/dir.mk, $(DIRS))
++include $(patsubst %, %/gazelle_dir.mk, $(DIRS))
+ 
+ OBJS = $(subst .c,.o,$(SRCS))
+-TMPS := $(subst .c,.s,$(SRCS))
+-TMPS += $(subst .c,.i,$(SRCS))
+ 
+ LWIP_LIB = liblwip.a
+ 
+ INSTALL_LIB = $(DESTDIR)/usr/lib64
+ INSTALL_INC = $(DESTDIR)/usr/include/lwip
+ 
+-.PHONY: all
++.PHONY: all install clean
+ all: $(LWIP_LIB)
+ 
+-.depend: $(SRCS)
+-	rm -f ./.depend
+-	$(foreach SRC,$(SRCS),$(CC) $(CFLAGS) -MM -MT $(SRC:.c=.o) $(SRC) >> .depend;)
+-
+--include .depend
+-
+ $(LWIP_LIB): $(OBJS)
+-	$(AR) $(ARFLAGS) $@ $(OBJS)
++	$(call printlog, BUILD, $@)
++	$(QUIET) $(AR) $(ARFLAGS) $@ $(OBJS)
++
++%.o: %.c
++	$(call printlog, BUILD, $@)
++	$(QUIET) $(CC) $(CFLAGS) -c $(filter %.c,$^) -o $@
+ 
+-.PHONY: install
+ install:
+-	install -dp $(INSTALL_LIB) $(INSTALL_INC)
+-	install -Dp $(LWIP_DIR)/$(LWIP_LIB) $(INSTALL_LIB)
+-	cp -pr $(LWIP_INC)/* $(INSTALL_INC)/
++	$(QUIET) install -dp $(INSTALL_LIB) $(INSTALL_INC)
++	$(call printlog, INSTALL, $(INSTALL_LIB)/$(LWIP_LIB))
++	$(QUIET) install -Dp $(LWIP_DIR)/$(LWIP_LIB) $(INSTALL_LIB)
++	$(call printlog, INSTALL, $(INSTALL_INC))
++	$(QUIET) cp -pr $(LWIP_INC)/* $(INSTALL_INC)/
++	$(QUIET) cp -p Printlog.mk $(INSTALL_INC)/
+ 
+-.PHONY: clean
+ clean:
+-	$(RM) $(LWIP_LIB) $(OBJS) $(TMPS) .depend
++	$(call printlog, CLEAN, $(LWIP_LIB))
++	$(QUIET) $(RM) $(LWIP_LIB) $(OBJS)
+diff --git a/src/Printlog.mk b/src/Printlog.mk
+new file mode 100644
+index 0000000..740035c
+--- /dev/null
++++ b/src/Printlog.mk
+@@ -0,0 +1,15 @@
++
++ROOT_DIR ?= $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
++
++ifeq ($(V),1)
++	QUIET =
++	printlog =
++else
++	QUIET = @
++	printlog = @printf '  %-8s %s%s\n'				\
++				"$(1)"								\
++				"$(patsubst $(ROOT_DIR)/%,%,$(2))"	\
++				"$(if $(3), $(3))";
++	MAKEFLAGS += --no-print-directory
++endif
++
+diff --git a/src/api/dir.mk b/src/api/gazelle_dir.mk
+similarity index 100%
+rename from src/api/dir.mk
+rename to src/api/gazelle_dir.mk
+diff --git a/src/api/posix_api.c b/src/api/posix_api.c
+index b7334da..d9b983c 100644
+--- a/src/api/posix_api.c
++++ b/src/api/posix_api.c
+@@ -30,7 +30,6 @@
+  *
+  */
+ 
+-#define _GNU_SOURCE
+ #include <dlfcn.h>
+ #include <fcntl.h>
+ #include <sys/epoll.h>
+diff --git a/src/api/sys_arch.c b/src/api/sys_arch.c
+index f93a00e..d143a73 100644
+--- a/src/api/sys_arch.c
++++ b/src/api/sys_arch.c
+@@ -30,7 +30,6 @@
+  *
+  */
+ 
+-#define _GNU_SOURCE
+ #include <pthread.h>
+ #include <string.h>
+ #include <time.h>
+diff --git a/src/core/dir.mk b/src/core/gazelle_dir.mk
+similarity index 100%
+rename from src/core/dir.mk
+rename to src/core/gazelle_dir.mk
+diff --git a/src/netif/dir.mk b/src/netif/gazelle_dir.mk
+similarity index 100%
+rename from src/netif/dir.mk
+rename to src/netif/gazelle_dir.mk
+-- 
+2.22.0.windows.1
+
