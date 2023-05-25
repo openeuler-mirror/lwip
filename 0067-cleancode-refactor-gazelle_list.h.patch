@@ -1,0 +1,158 @@
+From 3a69e52c7b1e256274ee0d852543e2f89bd7b902 Mon Sep 17 00:00:00 2001
+From: Lemmy Huang <huangliming5@huawei.com>
+Date: Mon, 22 May 2023 21:00:28 +0800
+Subject: [PATCH 1/2] cleancode: refactor gazelle_list.h
+
+Signed-off-by: Lemmy Huang <huangliming5@huawei.com>
+---
+ src/api/gazelle_sock.c     |  2 -
+ src/include/gazelle_list.h | 93 ++++++++++++++++++++------------------
+ 2 files changed, 48 insertions(+), 47 deletions(-)
+
+diff --git a/src/api/gazelle_sock.c b/src/api/gazelle_sock.c
+index 1164485..3d3d65f 100644
+--- a/src/api/gazelle_sock.c
++++ b/src/api/gazelle_sock.c
+@@ -114,8 +114,6 @@ int gazelle_alloc_socket(struct netconn *newconn, int accepted, int flags)
+ /* reference tag: free_socket() */
+ void gazelle_free_socket(struct lwip_sock *sock, int fd)
+ {
+-  /* remove sock from same_node_recv_lit */
+-  list_del_node_null(&sock->recv_list);
+   gazelle_clean_sock(fd);
+   posix_api->close_fn(fd);
+ }
+diff --git a/src/include/gazelle_list.h b/src/include/gazelle_list.h
+index a40c17f..a9ed235 100644
+--- a/src/include/gazelle_list.h
++++ b/src/include/gazelle_list.h
+@@ -33,78 +33,81 @@
+ #ifndef _GAZELLE_LIST_H_
+ #define _GAZELLE_LIST_H_
+ 
+-#ifndef NULL
+-#ifdef __cplusplus
+-#define NULL 0
+-#else
+-#define NULL ((void *)0)
+-#endif
+-#endif
+-
++/* double circular linked list */
+ struct list_node {
+     struct list_node *prev;
+     struct list_node *next;
+ };
+ 
+-static inline void init_list_node_null(struct list_node *n)
++#ifndef container_of
++#define container_of(ptr, type, member)                 ({ \
++    typeof( ((type *)0)->member ) *__mptr = (ptr);         \
++    (type *)((char *)__mptr - offsetof(type,member));   })
++#endif /* container_of */
++
++#define list_entry(ptr, type, member) \
++    container_of(ptr, type, member)
++
++#define list_for_each_node(node, n, head) \
++    for (node = (head)->next, n = (node)->next; \
++         node != (head); \
++         node = n, n = (node)->next)
++
++static inline unsigned list_get_count(const struct list_node *h)
+ {
+-    n->prev = NULL;
+-    n->next = NULL;
++    const struct list_node *node, *n;
++    unsigned count = 0;
++    list_for_each_node(node, n, h) {
++        ++count;
++    }
++    return count;
+ }
+ 
+-static inline void init_list_node(struct list_node *n)
++static inline int list_node_null(const struct list_node *n)
+ {
+-    n->prev = n;
+-    n->next = n;
++    return (n->prev == NULL) || (n->next == NULL);
+ }
+ 
+-static inline void list_add_node(struct list_node *h, struct list_node *n)
++static inline int list_head_empty(const struct list_node *h)
+ {
+-    n->next = h;
+-    n->prev = h->prev;
+-    h->prev->next = n;
+-    h->prev = n;
++    return h == h->next;
+ }
+ 
+-static inline void list_del_node(struct list_node *n)
++static inline void list_init_head(struct list_node *n)
+ {
+-    struct list_node *prev = n->prev;
+-    struct list_node *next = n->next;
+-    next->prev = prev;
+-    prev->next = next;
++    n->prev = n;
++    n->next = n;
+ }
+ 
+-static inline void list_del_node_init(struct list_node *n)
++static inline void list_init_node(struct list_node *n)
+ {
+-    list_del_node(n);
+-    init_list_node(n);
++    n->prev = NULL;
++    n->next = NULL;
+ }
+ 
+-static inline void list_del_node_null(struct list_node *n)
++/* add node befor head, means at tail */
++static inline void list_add_node(struct list_node *n, struct list_node *head)
+ {
+-    if ((n->next) && (n->prev)) {
+-        list_del_node(n);
+-    }
+-    init_list_node_null(n);
++    n->next = head;
++    n->prev = head->prev;
++    head->prev->next = n;
++    head->prev = n;
+ }
+ 
+-static inline int list_is_null(const struct list_node *n)
++static inline void __list_del_node(struct list_node *n)
+ {
+-    return (n->prev == NULL) && (n->next == NULL);
++    struct list_node *prev = n->prev;
++    struct list_node *next = n->next;
++    next->prev = prev;
++    prev->next = next;
+ }
+ 
+-static inline int list_is_empty(const struct list_node *h)
++static inline void list_del_node(struct list_node *n)
+ {
+-    return h == h->next;
++    if (!list_node_null(n)) {
++        __list_del_node(n);
++    }
++    list_init_node(n);
+ }
+ 
+-#define list_for_each_safe(pos, n, head) \
+-    for (pos = (head)->next, n = (pos)->next; pos != (head); pos = n, n = (pos)->next)
+-
+-#ifndef container_of
+-#define container_of(ptr, type, member) ({ \
+-    typeof( ((type *)0)->member ) *__mptr = (ptr); \
+-    (type *)((char *)__mptr - offsetof(type,member));})
+-#endif /* container_of */
+-
+ #endif /* _GAZELLE_LIST_H_ */
+-- 
+2.22.0.windows.1
+
