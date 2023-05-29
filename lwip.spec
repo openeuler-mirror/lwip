@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 61
+Release: 62
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -168,6 +168,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9066 -p1
 %patch9067 -p1
 %patch9068 -p1
+%patch9069 -p1
 %patch9070 -p1
 
 %build
@@ -184,6 +185,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Mon May 29 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-62
+- fix spec patch9069 
+
 * Mon May 29 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-61
 - cleancode: refactor sys_now and lwip_ioctl
 
