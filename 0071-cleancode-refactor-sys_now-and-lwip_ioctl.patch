@@ -1,0 +1,462 @@
+From 877f1062b9f96a0f5f1aa39ee556f65d0b298aec Mon Sep 17 00:00:00 2001
+From: Lemmy Huang <huangliming5@huawei.com>
+Date: Sat, 27 May 2023 10:59:48 +0800
+Subject: [PATCH 3/5] cleancode: refactor sys_now and lwip_ioctl
+
+Signed-off-by: Lemmy Huang <huangliming5@huawei.com>
+---
+ src/api/api_msg.c           |  2 --
+ src/api/sockets.c           | 33 ++--------------------
+ src/api/sys_arch.c          | 55 +++++++++++++++++++++----------------
+ src/api/tcpip.c             | 34 +++--------------------
+ src/core/timeouts.c         | 12 --------
+ src/include/arch/sys_arch.h | 16 +++--------
+ src/include/lwip/sockets.h  | 21 +++-----------
+ src/include/lwip/tcp.h      | 17 ------------
+ src/include/lwip/tcpip.h    |  2 +-
+ src/include/lwip/timeouts.h |  4 ---
+ 10 files changed, 46 insertions(+), 150 deletions(-)
+
+diff --git a/src/api/api_msg.c b/src/api/api_msg.c
+index b4333f5..30929be 100644
+--- a/src/api/api_msg.c
++++ b/src/api/api_msg.c
+@@ -55,9 +55,7 @@
+ #include "lwip/priv/tcpip_priv.h"
+ 
+ #if GAZELLE_ENABLE
+-#include "lwip/sockets.h"
+ #include "lwipsock.h"
+-#include "gazelle_posix_api.h"
+ extern void gazelle_connected_callback(struct netconn *conn);
+ #endif
+ 
+diff --git a/src/api/sockets.c b/src/api/sockets.c
+index 8a7b9b8..dee9230 100644
+--- a/src/api/sockets.c
++++ b/src/api/sockets.c
+@@ -3857,33 +3857,6 @@ lwip_setsockopt_impl(int s, int level, int optname, const void *optval, socklen_
+   return err;
+ }
+ 
+-#if GAZELLE_ENABLE
+-int
+-lwip_ioctl(int s, long cmd, ...)
+-{
+-  struct lwip_sock *sock = get_socket(s);
+-  u8_t val;
+-
+-#if LWIP_SO_RCVBUF
+-  int recv_avail;
+-#endif /* LWIP_SO_RCVBUF */
+-
+-  int ret = -1;
+-  void *argp;
+-  va_list ap;
+-
+-  va_start(ap, cmd);
+-  argp = va_arg(ap, void *);
+-  va_end(ap);
+-
+-  if (!sock) {
+-    return posix_api->ioctl_fn(s, cmd, argp);
+-  }
+-  if (POSIX_HAS_TYPE(sock, POSIX_KERNEL)) {
+-    if ((ret = posix_api->ioctl_fn(s, cmd, argp)) == -1)
+-      return ret;
+-  }
+-#else
+ int
+ lwip_ioctl(int s, long cmd, void *argp)
+ {
+@@ -3896,7 +3869,6 @@ lwip_ioctl(int s, long cmd, void *argp)
+   if (!sock) {
+     return -1;
+   }
+-#endif /* GAZELLE_ENABLE */
+ 
+   switch (cmd) {
+ #if LWIP_SO_RCVBUF || LWIP_FIONREAD_LINUXMODE
+@@ -4040,12 +4012,11 @@ lwip_fcntl(int s, int cmd, int val)
+       break;
+     default:
+       LWIP_DEBUGF(SOCKETS_DEBUG, ("lwip_fcntl(%d, UNIMPL: %d, %d)\n", s, cmd, val));
++      sock_set_errno(sock, ENOSYS); /* not yet implemented */
+ #if GAZELLE_ENABLE
+       sock_set_errno(sock, 0); /* not yet implemented, but we return 0 for compatilbe with app */
+       ret = 0;
+-#else
+-      sock_set_errno(sock, ENOSYS); /* not yet implemented */
+-#endif
++#endif /* GAZELLE_ENABLE */
+       break;
+   }
+   done_socket(sock);
+diff --git a/src/api/sys_arch.c b/src/api/sys_arch.c
+index d143a73..9b75391 100644
+--- a/src/api/sys_arch.c
++++ b/src/api/sys_arch.c
+@@ -36,15 +36,45 @@
+ #include <unistd.h>
+ 
+ #include <rte_memzone.h>
++#include <rte_cycles.h>
+ 
+ #include "lwip/err.h"
+-#include "lwip/mem.h"
+ #include "lwip/memp.h"
+ #include "lwip/opt.h"
+ #include "lwip/sys.h"
+ #include "lwip/timeouts.h"
+ #include "arch/sys_arch.h"
+ 
++#define SEC_TO_MSEC         1000
++static u64_t g_sys_cycles_per_ms = 0;
++
++/*
++ * Timer
++ * */
++void sys_timer_init(void)
++{
++    u64_t freq = rte_get_tsc_hz();
++    if (g_sys_cycles_per_ms == 0) {
++        g_sys_cycles_per_ms = (freq + SEC_TO_MSEC - 1) / SEC_TO_MSEC;
++    }
++}
++
++u32_t sys_now(void)
++{
++    return (u32_t)(rte_rdtsc() / g_sys_cycles_per_ms);
++}
++
++void sys_timer_run(void)
++{
++  u32_t sleeptime;
++
++  sleeptime = sys_timeouts_sleeptime();
++  if (sleeptime == 0) {
++    sys_check_timeouts();
++  }
++}
++
++
+ struct sys_mutex {
+     volatile unsigned int m;
+ };
+@@ -74,9 +104,6 @@ struct sys_mem_stats {
+ 
+ static PER_THREAD struct sys_mem_stats hugepage_stats;
+ 
+-static uint64_t cycles_per_ms __attribute__((aligned(64)));
+-static uint64_t sys_start_ms __attribute__((aligned(64)));
+-
+ /*
+  * Mailbox
+  * */
+@@ -329,26 +356,6 @@ void sys_mutex_free(struct sys_mutex **mutex)
+ {
+ }
+ 
+-/* Timer from DPDK */
+-void sys_calibrate_tsc(void)
+-{
+-#define MS_PER_SEC  1E3
+-    uint64_t freq = rte_get_tsc_hz();
+-
+-    if (cycles_per_ms == 0) {
+-        cycles_per_ms = (freq + MS_PER_SEC - 1) / MS_PER_SEC;
+-    }
+-    if (sys_start_ms == 0) {
+-        sys_start_ms = rte_rdtsc() / cycles_per_ms;
+-    }
+-}
+-
+-uint32_t sys_now(void)
+-{
+-    uint64_t cur_ms = rte_rdtsc() / cycles_per_ms;
+-    return (uint32_t)(cur_ms - sys_start_ms);
+-}
+-
+ /*
+  * Critical section
+  * */
+diff --git a/src/api/tcpip.c b/src/api/tcpip.c
+index fe7a7bd..a7e312a 100644
+--- a/src/api/tcpip.c
++++ b/src/api/tcpip.c
+@@ -56,13 +56,13 @@
+ #define TCPIP_MSG_VAR_FREE(name)    API_VAR_FREE(MEMP_TCPIP_MSG_API, name)
+ 
+ /* global variables */
+-static PER_THREAD tcpip_init_done_fn tcpip_init_done;
+-static PER_THREAD void *tcpip_init_done_arg;
+-static PER_THREAD sys_mbox_t tcpip_mbox;
++static tcpip_init_done_fn tcpip_init_done;
++static void *tcpip_init_done_arg;
++static sys_mbox_t tcpip_mbox;
+ 
+ #if LWIP_TCPIP_CORE_LOCKING
+ /** The global semaphore to lock the stack. */
+-PER_THREAD sys_mutex_t lock_tcpip_core;
++sys_mutex_t lock_tcpip_core;
+ #endif /* LWIP_TCPIP_CORE_LOCKING */
+ 
+ static void tcpip_thread_handle_msg(struct tcpip_msg *msg);
+@@ -123,13 +123,8 @@ again:
+  *
+  * @param arg unused argument
+  */
+-#if GAZELLE_ENABLE
+-__attribute__((unused)) static void
+-tcpip_thread(void *arg)
+-#else
+ static void
+ tcpip_thread(void *arg)
+-#endif /* GAZELLE_ENABLE */
+ {
+   struct tcpip_msg *msg;
+   LWIP_UNUSED_ARG(arg);
+@@ -247,9 +242,6 @@ tcpip_inpkt(struct pbuf *p, struct netif *inp, netif_input_fn input_fn)
+ #if LWIP_TCPIP_CORE_LOCKING_INPUT
+   err_t ret;
+   LWIP_DEBUGF(TCPIP_DEBUG, ("tcpip_inpkt: PACKET %p/%p\n", (void *)p, (void *)inp));
+-#if GAZELLE_ENABLE && LWIP_TIMERS
+-  sys_timer_run();
+-#endif
+   LOCK_TCPIP_CORE();
+   ret = input_fn(p, inp);
+   UNLOCK_TCPIP_CORE();
+@@ -329,9 +321,6 @@ tcpip_callback(tcpip_callback_fn function, void *ctx)
+   msg->msg.cb.function = function;
+   msg->msg.cb.ctx = ctx;
+ 
+-#if GAZELLE_ENABLE && LWIP_TIMER
+-  sys_timer_run();
+-#endif
+   sys_mbox_post(&tcpip_mbox, msg);
+   return ERR_OK;
+ }
+@@ -368,9 +357,6 @@ tcpip_try_callback(tcpip_callback_fn function, void *ctx)
+   msg->msg.cb.function = function;
+   msg->msg.cb.ctx = ctx;
+ 
+-#if GAZELLE_ENABLE && LWIP_TIMER
+-  sys_timer_run();
+-#endif
+   if (sys_mbox_trypost(&tcpip_mbox, msg) != ERR_OK) {
+     memp_free(MEMP_TCPIP_MSG_API, msg);
+     return ERR_MEM;
+@@ -452,9 +438,6 @@ tcpip_send_msg_wait_sem(tcpip_callback_fn fn, void *apimsg, sys_sem_t *sem)
+ {
+ #if LWIP_TCPIP_CORE_LOCKING
+   LWIP_UNUSED_ARG(sem);
+-#if GAZELLE_ENABLE && LWIP_TIMERS
+-  sys_timer_run();
+-#endif
+   LOCK_TCPIP_CORE();
+   fn(apimsg);
+   UNLOCK_TCPIP_CORE();
+@@ -492,9 +475,6 @@ tcpip_api_call(tcpip_api_call_fn fn, struct tcpip_api_call_data *call)
+ #if LWIP_TCPIP_CORE_LOCKING
+   err_t err;
+   LOCK_TCPIP_CORE();
+-#if GAZELLE_ENABLE && LWIP_TIMERS
+-  sys_timer_run();
+-#endif
+   err = fn(call);
+   UNLOCK_TCPIP_CORE();
+   return err;
+@@ -557,10 +537,6 @@ tcpip_callbackmsg_new(tcpip_callback_fn function, void *ctx)
+   msg->type = TCPIP_MSG_CALLBACK_STATIC;
+   msg->msg.cb.function = function;
+   msg->msg.cb.ctx = ctx;
+-
+-#if GAZELLE_ENABLE && LWIP_TIMER
+-  sys_timer_run();
+-#endif
+   return (struct tcpip_callback_msg *)msg;
+ }
+ 
+@@ -638,9 +614,7 @@ tcpip_init(tcpip_init_done_fn initfunc, void *arg)
+   }
+ #endif /* LWIP_TCPIP_CORE_LOCKING */
+ 
+-#if !GAZELLE_ENABLE
+   sys_thread_new(TCPIP_THREAD_NAME, tcpip_thread, NULL, TCPIP_THREAD_STACKSIZE, TCPIP_THREAD_PRIO);
+-#endif
+ }
+ 
+ /**
+diff --git a/src/core/timeouts.c b/src/core/timeouts.c
+index 2b80b0a..9d0c23e 100644
+--- a/src/core/timeouts.c
++++ b/src/core/timeouts.c
+@@ -442,18 +442,6 @@ sys_timeouts_sleeptime(void)
+   }
+ }
+ 
+-#if GAZELLE_ENABLE
+-void sys_timer_run(void)
+-{
+-  u32_t sleeptime;
+-
+-  sleeptime = sys_timeouts_sleeptime();
+-  if (sleeptime == 0) {
+-    sys_check_timeouts();
+-  }
+-}
+-#endif /* GAZELLE_ENABLE */
+-
+ #else /* LWIP_TIMERS && !LWIP_TIMERS_CUSTOM */
+ /* Satisfy the TCP code which calls this function */
+ void
+diff --git a/src/include/arch/sys_arch.h b/src/include/arch/sys_arch.h
+index 907c116..f2a0a49 100644
+--- a/src/include/arch/sys_arch.h
++++ b/src/include/arch/sys_arch.h
+@@ -76,6 +76,10 @@ int sys_mbox_empty(struct sys_mbox *);
+ struct sys_thread;
+ typedef struct sys_thread *sys_thread_t;
+ 
++void sys_timer_init(void);
++void sys_timer_run(void);
++u32_t sys_now(void);
++
+ #if GAZELLE_ENABLE
+ extern int eth_dev_poll(void);
+ #include <rte_ring.h>
+@@ -124,16 +128,4 @@ static __rte_always_inline uint32_t gazelle_st_ring_dequeue_burst(struct rte_rin
+ }
+ #endif
+ 
+-void sys_calibrate_tsc(void);
+-uint32_t sys_now(void);
+-__attribute__((always_inline)) inline int update_timeout(int timeout, uint32_t poll_ts)
+-{
+-    uint32_t used_ms = sys_now() - poll_ts;
+-    if (timeout > 0 && used_ms < timeout) {
+-        return timeout;
+-    } else {
+-        return 0;
+-    }
+-}
+-
+ #endif /* _LWIP_ARCH_SYS_ARCH_H_ */
+diff --git a/src/include/lwip/sockets.h b/src/include/lwip/sockets.h
+index e59fdf4..643093a 100644
+--- a/src/include/lwip/sockets.h
++++ b/src/include/lwip/sockets.h
+@@ -552,7 +552,7 @@ struct pollfd
+   short revents;
+ };
+ #endif
+-#endif /* LWIP_SOCKET_POLL */
++#endif /* GAZELLE_ENABLE */
+ 
+ /** LWIP_TIMEVAL_PRIVATE: if you want to use the struct timeval provided
+  * by your system, set this to 0 and include <sys/time.h> in cc.h */
+@@ -615,6 +615,9 @@ int fcntl(int s, int cmd, ...);
+ #endif /* LWIP_POSIX_SOCKETS_IO_NAMES */
+ #endif /* LWIP_COMPAT_SOCKETS == 2 */
+ 
++int lwip_sock_make_addr(struct netconn *conn, ip_addr_t *fromaddr, u16_t port,
++                    struct sockaddr *from, socklen_t *fromlen);
++
+ int lwip_accept(int s, struct sockaddr *addr, socklen_t *addrlen);
+ int lwip_accept4(int s, struct sockaddr *addr, socklen_t *addrlen, int flags);
+ int lwip_bind(int s, const struct sockaddr *name, socklen_t namelen);
+@@ -646,17 +649,8 @@ int lwip_select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptse
+ #if LWIP_SOCKET_POLL
+ int lwip_poll(struct pollfd *fds, nfds_t nfds, int timeout);
+ #endif
+-
+-#if GAZELLE_ENABLE
+-int lwip_ioctl(int s, long cmd, ...);
+-int lwip_fcntl(int s, int cmd, int val);
+-int lwip_sock_make_addr(struct netconn *conn, ip_addr_t *fromaddr, u16_t port,
+-                    struct sockaddr *from, socklen_t *fromlen);
+-#else
+ int lwip_ioctl(int s, long cmd, void *argp);
+ int lwip_fcntl(int s, int cmd, int val);
+-#endif /* GAZELLE_ENABLE */
+-
+ const char *lwip_inet_ntop(int af, const void *src, char *dst, socklen_t size);
+ int lwip_inet_pton(int af, const char *src, void *dst);
+ 
+@@ -722,17 +716,10 @@ int lwip_inet_pton(int af, const char *src, void *dst);
+ #define writev(s,iov,iovcnt)                      lwip_writev(s,iov,iovcnt)
+ /** @ingroup socket */
+ #define close(s)                                  lwip_close(s)
+-
+-#if GAZELLE_ENABLE
+-#define fcntl(s,cmd...)                           lwip_fcntl(s,cmd)
+-#define ioctl(s,cmd...)                           lwip_ioctl(s,cmd)
+-#else
+ /** @ingroup socket */
+ #define fcntl(s,cmd,val)                          lwip_fcntl(s,cmd,val)
+ /** @ingroup socket */
+ #define ioctl(s,cmd,argp)                         lwip_ioctl(s,cmd,argp)
+-#endif /* GAZELLE_ENABLE */
+-
+ #endif /* LWIP_POSIX_SOCKETS_IO_NAMES */
+ #endif /* LWIP_COMPAT_SOCKETS != 2 */
+ 
+diff --git a/src/include/lwip/tcp.h b/src/include/lwip/tcp.h
+index b093baa..432282f 100644
+--- a/src/include/lwip/tcp.h
++++ b/src/include/lwip/tcp.h
+@@ -513,23 +513,6 @@ err_t            tcp_tcp_get_tcp_addrinfo(struct tcp_pcb *pcb, int local, ip_add
+ 
+ #define tcp_dbg_get_tcp_state(pcb) ((pcb)->state)
+ 
+-enum tcp_list_state {
+-  ACTIVE_LIST,
+-  LISTEN_LIST,
+-  TIME_WAIT_LIST,
+-};
+-
+-struct tcp_pcb_dp {
+-  uint32_t state;
+-  uint32_t lip;
+-  uint32_t rip;
+-  uint16_t l_port;
+-  uint16_t r_port;
+-  uint32_t r_next;
+-  uint32_t s_next;
+-  uint32_t tcp_sub_state;
+-};
+-
+ /* for compatibility with older implementation */
+ #define tcp_new_ip6() tcp_new_ip_type(IPADDR_TYPE_V6)
+ 
+diff --git a/src/include/lwip/tcpip.h b/src/include/lwip/tcpip.h
+index d2c2440..0b8880a 100644
+--- a/src/include/lwip/tcpip.h
++++ b/src/include/lwip/tcpip.h
+@@ -51,7 +51,7 @@ extern "C" {
+ 
+ #if LWIP_TCPIP_CORE_LOCKING
+ /** The global semaphore to lock the stack. */
+-extern PER_THREAD sys_mutex_t lock_tcpip_core;
++extern sys_mutex_t lock_tcpip_core;
+ #if !defined LOCK_TCPIP_CORE || defined __DOXYGEN__
+ /** Lock lwIP core mutex (needs @ref LWIP_TCPIP_CORE_LOCKING 1) */
+ #define LOCK_TCPIP_CORE()     sys_mutex_lock(&lock_tcpip_core)
+diff --git a/src/include/lwip/timeouts.h b/src/include/lwip/timeouts.h
+index f7ffc5e..b601f9e 100644
+--- a/src/include/lwip/timeouts.h
++++ b/src/include/lwip/timeouts.h
+@@ -119,10 +119,6 @@ struct sys_timeo** sys_timeouts_get_next_timeout(void);
+ void lwip_cyclic_timer(void *arg);
+ #endif
+ 
+-#if GAZELLE_ENABLE
+-void sys_timer_run(void);
+-#endif /* GAZELLE_ENABLE */
+-
+ #endif /* LWIP_TIMERS */
+ 
+ #ifdef __cplusplus
+-- 
+2.22.0.windows.1
+
