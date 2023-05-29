@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 53
+Release: 54
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -74,6 +74,8 @@ Patch9058:  0059-fix-last_unsent-last_unacked.patch
 Patch9059:  0060-lwip-add-udp-multicast.patch
 Patch9060:  0061-fix-pbuf-leak-in-udp-connection.patch
 Patch9061:  0062-cleancode-improving-makefile-readability.patch
+Patch9062:  0063-cleancode-remove-perf.patch
+Patch9063:  0064-cleancode-rename-gazelle-files-in-lwip.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -152,6 +154,8 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9059 -p1
 %patch9060 -p1
 %patch9061 -p1
+%patch9062 -p1
+%patch9063 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -167,6 +171,10 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Tue May 23 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-54
+- cleancode: remove perf
+- cleancode: rename gazelle files in lwip
+
 * Tue May 23 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-53
 - cleancode: improving makefile readability
 
