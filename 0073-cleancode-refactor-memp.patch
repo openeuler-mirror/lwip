@@ -1,0 +1,598 @@
+From 83add6124dba70b56b6d8ac1ce0b790d5ac4b230 Mon Sep 17 00:00:00 2001
+From: Lemmy Huang <huangliming5@huawei.com>
+Date: Mon, 29 May 2023 10:08:56 +0800
+Subject: [PATCH 5/5] cleancode: refactor memp
+
+Signed-off-by: Lemmy Huang <huangliming5@huawei.com>
+---
+ src/api/sys_arch.c          | 152 ++++++++++++++++++++----------------
+ src/core/init.c             |   4 +-
+ src/core/mem.c              |   5 ++
+ src/core/memp.c             |   7 +-
+ src/include/arch/cc.h       |  64 ++++++---------
+ src/include/arch/sys_arch.h |  59 ++++++++------
+ src/include/lwip/memp.h     |  19 +----
+ src/include/memp_def.h      |  66 ----------------
+ 8 files changed, 163 insertions(+), 213 deletions(-)
+ delete mode 100644 src/include/memp_def.h
+
+diff --git a/src/api/sys_arch.c b/src/api/sys_arch.c
+index 9b75391..928dee0 100644
+--- a/src/api/sys_arch.c
++++ b/src/api/sys_arch.c
+@@ -39,19 +39,21 @@
+ #include <rte_cycles.h>
+ 
+ #include "lwip/err.h"
+-#include "lwip/memp.h"
+ #include "lwip/opt.h"
+ #include "lwip/sys.h"
+ #include "lwip/timeouts.h"
+ #include "arch/sys_arch.h"
+ 
++#define MBOX_NAME_PREFIX  "_mbox_0x"
++#define MAX_MBOX_NAME_LEN (sizeof(MBOX_NAME_PREFIX) + 32) // log(UINT64_MAX) < 32
++
+ #define SEC_TO_MSEC         1000
+ static u64_t g_sys_cycles_per_ms = 0;
+ 
+ /*
+  * Timer
+  * */
+-void sys_timer_init(void)
++static void sys_timer_init(void)
+ {
+     u64_t freq = rte_get_tsc_hz();
+     if (g_sys_cycles_per_ms == 0) {
+@@ -66,47 +68,68 @@ u32_t sys_now(void)
+ 
+ void sys_timer_run(void)
+ {
+-  u32_t sleeptime;
++    u32_t sleeptime;
+ 
+-  sleeptime = sys_timeouts_sleeptime();
+-  if (sleeptime == 0) {
+-    sys_check_timeouts();
+-  }
++    sleeptime = sys_timeouts_sleeptime();
++    if (sleeptime == 0) {
++        sys_check_timeouts();
++    }
+ }
+ 
++void sys_nameid(const char *name, unsigned id, char *nameid, unsigned size)
++{
++    int ret = snprintf(nameid, size, "%s_%02hu", name, id);
++    if (ret < 0) {
++        LWIP_DEBUGF(SYS_DEBUG, ("sys_nameid: sprintf nameid failed\n"));
++        rte_exit(EXIT_FAILURE, "sprintf nameid failed\n");
++    }
++}
+ 
+-struct sys_mutex {
+-    volatile unsigned int m;
+-};
++/*
++ * Threads
++ * */
++void thread_create(const char *name, unsigned id, thread_fn func, void *arg)
++{
++    int ret;
++    pthread_t tid;
++    char thread_name[SYS_NAME_LEN];
+ 
+-struct sys_mutex lstack_mutex;
++    ret = pthread_create(&tid, NULL, func, arg);
++    if (ret != 0) {
++        LWIP_DEBUGF(SYS_DEBUG, ("thread_create: pthread_create failed\n"));
++        rte_exit(EXIT_FAILURE, "pthread_create failed\n");
++    }
+ 
+-struct sys_sem lstack_sem;
++    sys_nameid(name, id, thread_name, sizeof(thread_name));
++    ret = pthread_setname_np(tid, thread_name);
++    if (ret != 0) {
++        LWIP_DEBUGF(SYS_DEBUG, ("thread_create: pthread_setname_np %s failed\n", thread_name));
++    }
++}
+ 
+-#define MAX_THREAD_NAME 64
+-#define MBOX_NAME_PREFIX  "_mbox_0x"
+-#define MAX_MBOX_NAME_LEN (sizeof(MBOX_NAME_PREFIX) + 32) // log(UINT64_MAX) < 32
++sys_thread_t sys_thread_new(const char *name, lwip_thread_fn function, void *arg, int stacksize, int prio)
++{
++    sys_thread_t thread;
+ 
+-struct sys_thread {
+-    struct sys_thread *next;
+-    char name[MAX_THREAD_NAME];
+-    lwip_thread_fn fn;
+-    void *arg;
+-    int stacksize;
+-    int prio;
+-    pthread_t tid;
+-};
++    thread = (sys_thread_t)malloc(sizeof(*thread));
++    if (thread == NULL) {
++        LWIP_DEBUGF(SYS_DEBUG, ("sys_thread_new: malloc sys_thread failed\n"));
++        rte_exit(EXIT_FAILURE, "malloc sys_thread failed\n");
++    }
+ 
++    thread_create(name, 0, (thread_fn)function, arg);
+ 
+-struct sys_mem_stats {
+-    uint32_t tot_len;
+-};
++    snprintf(thread->name, sizeof(thread->name), "%s", name);
++    thread->stacksize = stacksize;
++    thread->prio = prio;
+ 
+-static PER_THREAD struct sys_mem_stats hugepage_stats;
++    return thread;
++}
+ 
+ /*
+  * Mailbox
+  * */
++extern int eth_dev_poll(void);
+ static int mbox_wait_func(void)
+ {
+ #if LWIP_TIMERS
+@@ -230,38 +253,6 @@ int sys_mbox_empty(struct sys_mbox *mb)
+     return rte_ring_count(mb->ring) == 0;
+ }
+ 
+-/*
+- * Threads
+- * */
+-sys_thread_t sys_thread_new(const char *name, lwip_thread_fn function, void *arg, int stacksize, int prio)
+-{
+-    int err;
+-    pthread_t tid;
+-    struct sys_thread *thread;
+-
+-    thread = (struct sys_thread *)malloc(sizeof(struct sys_thread));
+-    if (thread == NULL) {
+-        LWIP_DEBUGF(SYS_DEBUG, ("sys_thread_new: malloc sys_thread failed\n"));
+-        rte_exit(EXIT_FAILURE, "malloc sys_thread failed\n");
+-    }
+-
+-    err = pthread_create(&tid, NULL, (void*(*)(void *))function, arg);
+-    if (err > 0) {
+-        LWIP_DEBUGF(SYS_DEBUG, ("sys_thread_new: pthread_create failed\n"));
+-        rte_exit(EXIT_FAILURE, "pthread_create failed\n");
+-    }
+-
+-    err = pthread_setname_np(tid, name);
+-    if (err > 0) {
+-        LWIP_DEBUGF(SYS_DEBUG, ("sys_thread_new: pthread_setname_np failed\n"));
+-    }
+-    thread->tid = tid;
+-    thread->stacksize = stacksize;
+-    thread->prio = prio;
+-
+-    return thread;
+-}
+-
+ /*
+  * Semaphore
+  * */
+@@ -332,7 +323,7 @@ uint32_t sys_arch_sem_wait(struct sys_sem **s, uint32_t timeout)
+ 
+ void sys_sem_free(struct sys_sem **s)
+ {
+-    if ((s != NULL) && (*s != SYS_SEM_NULL))
++    if ((s != NULL) && (*s != NULL))
+         memp_free(MEMP_SYS_SEM, *s);
+ }
+ 
+@@ -369,20 +360,49 @@ void sys_arch_unprotect(sys_prot_t pval)
+ }
+ 
+ /*
+- * Hugepage memory manager
++ * Memory
+  * */
+-uint8_t *sys_hugepage_malloc(const char *name, uint32_t size)
++u8_t *sys_hugepage_malloc(const char *name, unsigned size)
+ {
+     const struct rte_memzone *mz;
++    char memname[PATH_MAX];
+ 
+-    mz = rte_memzone_reserve(name, size, rte_socket_id(), 0);
++    sys_nameid(name, rte_gettid(), memname, sizeof(memname));
++    mz = rte_memzone_reserve(memname, size, rte_socket_id(), 0);
+     if (mz == NULL) {
+         rte_exit(EXIT_FAILURE, "failed to reserver memory for mempool[%s]\n", name);
+         return NULL;
+     }
+ 
+     memset(mz->addr, 0, mz->len);
+-    hugepage_stats.tot_len += mz->len;
+-
+     return (uint8_t*)mz->addr;
+ }
++
++void sys_mempool_var_init(struct memp_desc *memp, char *desc, u16_t size, u16_t num,
++    u8_t *base, struct memp **tab, struct stats_mem *stats)
++{
++    LWIP_DEBUGF(SYS_DEBUG, ("[tid %u] %s: memp %p desc %s size %u num %u base %p\n", 
++        rte_gettid(), __FUNCTION__, memp, desc, size, num, base));
++
++#if defined(LWIP_DEBUG) || MEMP_OVERFLOW_CHECK || LWIP_STATS_DISPLAY
++    memp->desc = desc;
++#endif /* LWIP_DEBUG || MEMP_OVERFLOW_CHECK || LWIP_STATS_DISPLAY */
++#if MEMP_STATS
++    LWIP_ASSERT("stats != NULL", stats != NULL);
++    memp->stats = stats;
++#endif
++
++    memp->size = size;
++
++#if !MEMP_MEM_MALLOC
++    LWIP_ASSERT("base != NULL", base != NULL);
++    memp->num = num;
++    memp->base = base;
++    memp->tab = tab;
++#endif /* MEMP_MEM_MALLOC */
++}
++
++void sys_init(void)
++{
++    sys_timer_init();
++}
+diff --git a/src/core/init.c b/src/core/init.c
+index 7b6214f..a03b1d5 100644
+--- a/src/core/init.c
++++ b/src/core/init.c
+@@ -343,7 +343,9 @@ lwip_init(void)
+ 
+   /* Modules initialization */
+   stats_init();
+-
++#if !NO_SYS
++  sys_init();
++#endif /* !NO_SYS */
+   mem_init();
+   memp_init();
+   pbuf_init();
+diff --git a/src/core/mem.c b/src/core/mem.c
+index 84b3fcc..3701cae 100644
+--- a/src/core/mem.c
++++ b/src/core/mem.c
+@@ -515,6 +515,11 @@ plug_holes(struct mem *mem)
+ void
+ mem_init(void)
+ {
++#if GAZELLE_ENABLE
++  /* see LWIP_RAM_HEAP_POINTER */
++  LWIP_MEMORY_INIT_VAR(LWIP_RAM_HEAP_POINTER, MEM_SIZE_ALIGNED + (2U * SIZEOF_STRUCT_MEM));
++#endif /* GAZELLE_ENABLE */
++
+   struct mem *mem;
+ 
+   LWIP_ASSERT("Sanity check alignment",
+diff --git a/src/core/memp.c b/src/core/memp.c
+index fca1b0c..afcef93 100644
+--- a/src/core/memp.c
++++ b/src/core/memp.c
+@@ -80,7 +80,7 @@
+ 
+ #if GAZELLE_ENABLE
+ PER_THREAD struct memp_desc* memp_pools[MEMP_MAX] = {NULL};
+-#else
++#else /* GAZELLE_ENABLE */
+ const struct memp_desc *const memp_pools[MEMP_MAX] = {
+ #define LWIP_MEMPOOL(name,num,size,desc) &memp_ ## name,
+ #include "lwip/priv/memp_std.h"
+@@ -227,6 +227,11 @@ memp_init_pool(const struct memp_desc *desc)
+ void
+ memp_init(void)
+ {
++#if GAZELLE_ENABLE
++#define LWIP_MEMPOOL(name,num,size,desc)  LWIP_MEMPOOL_INIT_VAR(name,num,size,desc)
++#include "lwip/priv/memp_std.h"
++#endif /* GAZELLE_ENABLE */
++
+   u16_t i;
+ 
+   /* for every pool: */
+diff --git a/src/include/arch/cc.h b/src/include/arch/cc.h
+index 0b454bb..3bfe6cd 100644
+--- a/src/include/arch/cc.h
++++ b/src/include/arch/cc.h
+@@ -30,52 +30,36 @@
+  *
+  */
+ 
+-#ifndef _LWIP_ARCH_CC_H_
+-#define _LWIP_ARCH_CC_H_
++#ifndef __LWIP_ARCH_CC_H__
++#define __LWIP_ARCH_CC_H__
+ 
+-#include <stdint.h>
+-#include <stdlib.h>
+-#include <sys/time.h>
+-#include <sys/types.h>
+-
+-#include "lwiplog.h"
++#ifndef LWIP_RAND
++#define LWIP_RAND()     ((uint32_t)rand())
++#endif
+ 
+ #define LWIP_NOASSERT
+-
+ #define LWIP_ERRNO_STDINCLUDE 1
+-#define MEMP_MEMORY_BASE_PLACEHOLDER 0
+-#define MEMZONE_NAMESIZE 32
+ 
+-#define LWIP_RAND()     ((uint32_t)rand())
++#define LWIP_DECLARE_MEMORY_ALIGNED(variable_name, size) static PER_THREAD u8_t *variable_name;
++
++#define LWIP_MEMORY_INIT_VAR(name, size)    \
++  name = sys_hugepage_malloc(#name, size);
+ 
+-extern uint8_t *sys_hugepage_malloc(const char *name, uint32_t size);
+ 
+-#define LWIP_DECLARE_MEMP_BASE_ALIGNED(name, __size)\
+-PER_THREAD uint8_t *memp_memory_##name##_base; \
+-void alloc_memp_##name##_base(void) \
+-{ \
+-    memp_ ## name.desc = memp_desc_ ## name; \
+-    memp_ ## name.stats = &memp_stat ## name; \
+-    memp_ ## name.size = memp_size ## name; \
+-    memp_ ## name.num = memp_num ## name; \
+-    memp_ ## name.tab = &memp_tab_ ## name; \
+-    memp_pools[MEMP_##name] = &memp_ ## name; \
+-    \
+-    char mpname[MEMZONE_NAMESIZE] = {0}; \
+-    snprintf(mpname, MEMZONE_NAMESIZE, "%d_%s", (int)syscall(SYS_gettid), #name); \
+-    memp_memory_##name##_base = \
+-        sys_hugepage_malloc(mpname, LWIP_MEM_ALIGN_BUFFER(__size)); \
+-    memp_pools[MEMP_##name]->base = memp_memory_##name##_base; \
+-}
++#define LWIP_MEMPOOL_DECLARE(name,num,size,desc)            \
++  LWIP_DECLARE_MEMORY_ALIGNED(memp_memory_ ## name ## _base, 0); \
++  static PER_THREAD struct stats_mem memp_stat_ ## name;    \
++  static PER_THREAD struct memp *memp_tab_ ## name;         \
++                                                            \
++  PER_THREAD struct memp_desc memp_ ## name;
+ 
+-#define LWIP_DECLARE_MEMORY_ALIGNED(variable_name, size) \
+-PER_THREAD uint8_t *variable_name; \
+-void alloc_memory_##variable_name(void) \
+-{ \
+-    char mpname[MEMZONE_NAMESIZE] = {0}; \
+-    snprintf(mpname, MEMZONE_NAMESIZE, "%d_%s", (int)syscall(SYS_gettid), #variable_name); \
+-    (variable_name) = \
+-        sys_hugepage_malloc(mpname, LWIP_MEM_ALIGN_BUFFER(size)); \
+-}
++#define LWIP_MEMPOOL_INIT_VAR(name,num,size,desc)           \
++  memp_memory_ ## name ## _base = sys_hugepage_malloc(#name, LWIP_MEM_ALIGN_BUFFER((num) * (MEMP_SIZE + MEMP_ALIGN_SIZE(size)))); \
++  sys_mempool_var_init(&memp_ ## name,                      \
++                       desc, size, num,                     \
++                       memp_memory_ ## name ## _base,       \
++                       &memp_tab_ ## name,                  \
++                       &memp_stat_ ## name);                \
++  memp_pools[MEMP_ ## name] = &memp_ ## name;
+ 
+-#endif /* _LWIP_ARCH_CC_H_ */
++#endif /* __LWIP_ARCH_CC_H__ */
+\ No newline at end of file
+diff --git a/src/include/arch/sys_arch.h b/src/include/arch/sys_arch.h
+index f2a0a49..7befc92 100644
+--- a/src/include/arch/sys_arch.h
++++ b/src/include/arch/sys_arch.h
+@@ -33,55 +33,66 @@
+ #ifndef _LWIP_ARCH_SYS_ARCH_H_
+ #define _LWIP_ARCH_SYS_ARCH_H_
+ 
+-#include <rte_cycles.h>
+-#include <rte_debug.h>
++#include "lwip/memp.h"
+ 
+-#define SYS_MBOX_NULL NULL
+-#define SYS_SEM_NULL  NULL
+-typedef uint32_t sys_prot_t;
++#define SYS_NAME_LEN 64
+ 
+-struct sys_sem {
+-    volatile unsigned int c;
+-    int (*wait_fn)(void);
++struct sys_thread {
++    struct sys_thread *next;
++    char name[SYS_NAME_LEN];
++    void *arg;
++    int stacksize;
++    int prio;
+ };
++typedef struct sys_thread *sys_thread_t;
++typedef void *(*thread_fn)(void *arg);
++void thread_create(const char *name, unsigned id, thread_fn func, void *arg);
+ 
+-#define MBOX_NAME_LEN 64
+-struct sys_mbox {
+-    struct rte_ring *ring;
+-    char name[MBOX_NAME_LEN];
+-    int size;
+-    int socket_id;
+-    unsigned flags;
++
++struct sys_sem {
++    volatile unsigned int c;
+     int (*wait_fn)(void);
+ };
+-
+ typedef struct sys_sem *sys_sem_t;
+ #define sys_sem_valid(sem)             (((sem) != NULL) && (*(sem) != NULL))
+-#define sys_sem_valid_val(sem)         ((sem) != NULL)
+ #define sys_sem_set_invalid(sem)       do { if ((sem) != NULL) { *(sem) = NULL; }} while(0)
+-#define sys_sem_set_invalid_val(sem)   do { (sem) = NULL; } while(0)
+ 
++
++struct sys_mutex {
++    volatile unsigned int m;
++};
+ struct sys_mutex;
+ typedef struct sys_mutex *sys_mutex_t;
+ #define sys_mutex_valid(mutex)         sys_sem_valid(mutex)
+ #define sys_mutex_set_invalid(mutex)   sys_sem_set_invalid(mutex)
+ 
++
++struct sys_mbox {
++    char name[SYS_NAME_LEN];
++    int size;
++    int socket_id;
++    unsigned flags;
++    struct rte_ring *ring;
++    int (*wait_fn)(void);
++};
+ typedef struct sys_mbox *sys_mbox_t;
+ #define sys_mbox_valid(mbox)           sys_sem_valid(mbox)
+-#define sys_mbox_valid_val(mbox)       sys_sem_valid_val(mbox)
+ #define sys_mbox_set_invalid(mbox)     sys_sem_set_invalid(mbox)
+-#define sys_mbox_set_invalid_val(mbox) sys_sem_set_invalid_val(mbox)
+ int sys_mbox_empty(struct sys_mbox *);
+ 
+-struct sys_thread;
+-typedef struct sys_thread *sys_thread_t;
++typedef uint32_t sys_prot_t;
++
++
++void sys_nameid(const char *name, unsigned id, char *nameid, unsigned size);
++u8_t *sys_hugepage_malloc(const char *name, unsigned size);
++void sys_mempool_var_init(struct memp_desc *memp, char *desc, u16_t size, u16_t num,
++    u8_t *base, struct memp **tab, struct stats_mem *stats);
+ 
+-void sys_timer_init(void);
+ void sys_timer_run(void);
+ u32_t sys_now(void);
+ 
++
+ #if GAZELLE_ENABLE
+-extern int eth_dev_poll(void);
+ #include <rte_ring.h>
+ 
+ /* 
+diff --git a/src/include/lwip/memp.h b/src/include/lwip/memp.h
+index 1763836..d660e9f 100644
+--- a/src/include/lwip/memp.h
++++ b/src/include/lwip/memp.h
+@@ -60,9 +60,10 @@ typedef enum {
+ 
+ #if GAZELLE_ENABLE
+ extern PER_THREAD struct memp_desc* memp_pools[MEMP_MAX];
+-#else
++#include "arch/cc.h"
++#else /* GAZELLE_ENABLE */
++
+ extern const struct memp_desc* const memp_pools[MEMP_MAX];
+-#endif /* GAZELLE_ENABLE */
+ 
+ /**
+  * @ingroup mempool
+@@ -96,18 +97,6 @@ extern const struct memp_desc* const memp_pools[MEMP_MAX];
+  * To relocate a pool, declare it as extern in cc.h. Example for GCC:
+  *   extern u8_t \_\_attribute\_\_((section(".onchip_mem"))) memp_memory_my_private_pool_base[];
+  */
+-#if GAZELLE_ENABLE
+-#define LWIP_MEMPOOL_DECLARE(name,num,size,desc) \
+-    PER_THREAD struct memp_desc memp_ ## name = {0}; \
+-    PER_THREAD char memp_desc_ ## name[] = desc; \
+-    PER_THREAD struct stats_mem memp_stat ## name = {0}; \
+-    PER_THREAD u16_t memp_size ## name = size; \
+-    PER_THREAD u16_t memp_num ## name = num;   \
+-    PER_THREAD struct memp *memp_tab_ ## name = NULL; \
+-    LWIP_DECLARE_MEMP_BASE_ALIGNED(name, ((num) * (MEMP_SIZE + MEMP_ALIGN_SIZE(size))));
+-
+-#else /* GAZELLE_ENABLE */
+-
+ #define LWIP_MEMPOOL_DECLARE(name,num,size,desc) \
+   LWIP_DECLARE_MEMORY_ALIGNED(memp_memory_ ## name ## _base, ((num) * (MEMP_SIZE + MEMP_ALIGN_SIZE(size)))); \
+     \
+@@ -124,8 +113,8 @@ extern const struct memp_desc* const memp_pools[MEMP_MAX];
+     &memp_tab_ ## name \
+   };
+ 
+-#endif /* GAZELLE_ENABLE */
+ #endif /* MEMP_MEM_MALLOC */
++#endif /* GAZELLE_ENABLE */
+ 
+ /**
+  * @ingroup mempool
+diff --git a/src/include/memp_def.h b/src/include/memp_def.h
+deleted file mode 100644
+index 082f685..0000000
+--- a/src/include/memp_def.h
++++ /dev/null
+@@ -1,66 +0,0 @@
+-/*
+- * Copyright (c) 2001-2004 Swedish Institute of Computer Science.
+- * All rights reserved.
+- *
+- * Redistribution and use in source and binary forms, with or without modification,
+- * are permitted provided that the following conditions are met:
+- *
+- * 1. Redistributions of source code must retain the above copyright notice,
+- *    this list of conditions and the following disclaimer.
+- * 2. Redistributions in binary form must reproduce the above copyright notice,
+- *    this list of conditions and the following disclaimer in the documentation
+- *    and/or other materials provided with the distribution.
+- * 3. The name of the author may not be used to endorse or promote products
+- *    derived from this software without specific prior written permission.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+- * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT
+- * SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT
+- * OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+- * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
+- * OF SUCH DAMAGE.
+- *
+- * This file is part of the lwIP TCP/IP stack.
+- *
+- * Author: Huawei Technologies
+- *
+- */
+-
+-#ifndef __MEMP_DEF_H__
+-#define __MEMP_DEF_H__
+-
+-#include "lwip/opt.h"
+-#include "arch/cc.h"
+-
+-#define LWIP_MEMPOOL_BASE_DECLARE(name) \
+-    extern void alloc_memp_##name##_base(void);
+-
+-#define LWIP_MEM_MEMORY_DECLARE(name) \
+-    extern void alloc_memory_##name(void);
+-
+-#define LWIP_MEMPOOL_BASE_INIT(name) \
+-    alloc_memp_##name##_base();
+-
+-#define LWIP_MEM_MEMORY_INIT(name) \
+-    alloc_memory_##name();
+-
+-#define LWIP_MEMPOOL(name, num, size, desc) LWIP_MEMPOOL_BASE_DECLARE(name)
+-#include <lwip/priv/memp_std.h>
+-#undef LWIP_MEMPOOL
+-
+-static inline void hugepage_init(void)
+-{
+-#define LWIP_MEMPOOL(name,num,size,desc)  LWIP_MEMPOOL_BASE_INIT(name)
+-#include "lwip/priv/memp_std.h"
+-
+-#if !MEM_LIBC_MALLOC
+-	LWIP_MEM_MEMORY_DECLARE(ram_heap)
+-    LWIP_MEM_MEMORY_INIT(ram_heap)
+-#endif /* MEM_LIBC_MALLOC */
+-}
+-
+-#endif /* __MEMP_DEF_H__ */
+-- 
+2.22.0.windows.1
+
