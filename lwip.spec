@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 62
+Release: 63
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -83,6 +83,7 @@ Patch9067:  0068-cleancode-refactor-gazelle_hlist.h.patch
 Patch9068:  0069-cleancode-refactor-options-define.patch
 Patch9069:  0070-cleancode-refactor-GAZELLE_TCP_PCB_HASH.patch
 Patch9070:  0071-cleancode-refactor-sys_now-and-lwip_ioctl.patch
+Patch9071:  0072-cleancode-refactor-OFFLOAD_CHECKSUM-GAZELLE_TCP_DATA.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -170,6 +171,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9068 -p1
 %patch9069 -p1
 %patch9070 -p1
+%patch9071 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -185,6 +187,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Mon May 29 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-63
+- cleancode: refactor OFFLOAD_CHECKSUM GAZELLE_TCP_DATAACKS_REXMIT GAZELLE_TCP_NEW_PORT
+
 * Mon May 29 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-62
 - fix spec patch9069 
 
