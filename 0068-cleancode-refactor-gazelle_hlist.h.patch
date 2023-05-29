@@ -1,0 +1,389 @@
+From 323644a66afbf4a9ca079aef0bc1cbd463b2d33d Mon Sep 17 00:00:00 2001
+From: Lemmy Huang <huangliming5@huawei.com>
+Date: Tue, 23 May 2023 22:25:09 +0800
+Subject: [PATCH 2/2] cleancode: refactor gazelle_hlist.h
+
+Signed-off-by: Lemmy Huang <huangliming5@huawei.com>
+---
+ src/core/tcp.c                   |   2 +-
+ src/core/tcp_in.c                |   3 +-
+ src/include/gazelle_hlist.h      | 239 ++++++++++++++-----------------
+ src/include/lwip/priv/tcp_priv.h |   2 +-
+ src/include/lwip/tcp.h           |   3 -
+ 5 files changed, 110 insertions(+), 139 deletions(-)
+
+diff --git a/src/core/tcp.c b/src/core/tcp.c
+index 6a9c9fe..439f4f9 100644
+--- a/src/core/tcp.c
++++ b/src/core/tcp.c
+@@ -193,7 +193,7 @@ PER_THREAD struct tcp_pcb ** tcp_pcb_lists[NUM_TCP_PCB_LISTS] = {NULL, NULL, NUL
+     for (_i = 0; _i < TCP_HTABLE_SIZE; ++_i) { \
+       if (sys_mutex_new(&(ht_ptr)->array[_i].mutex) != ERR_OK) \
+         LWIP_ASSERT("failed to create ht->array[].mutex", 0);\
+-      INIT_HLIST_HEAD(&(ht_ptr)->array[_i].chain); \
++      hlist_init_head(&(ht_ptr)->array[_i].chain); \
+     }\
+   } while (0)
+ 
+diff --git a/src/core/tcp_in.c b/src/core/tcp_in.c
+index 9585965..0d5af43 100644
+--- a/src/core/tcp_in.c
++++ b/src/core/tcp_in.c
+@@ -138,7 +138,6 @@ tcp_input(struct pbuf *p, struct netif *inp)
+ #if GAZELLE_TCP_PCB_HASH
+   u32_t idx;
+   struct hlist_head *head;
+-  struct hlist_node *node;
+   pcb = NULL;
+ #endif
+ 
+@@ -281,7 +280,7 @@ tcp_input(struct pbuf *p, struct netif *inp)
+                       ip_current_src_addr()->addr, tcphdr->src) &
+          (tcp_active_htable->size - 1);
+   head = &tcp_active_htable->array[idx].chain;
+-  tcppcb_hlist_for_each(pcb, node, head) {
++  hlist_for_each_entry(pcb, head, tcp_node) {
+ #else
+   for (pcb = tcp_active_pcbs; pcb != NULL; pcb = pcb->next) {
+ #endif
+diff --git a/src/include/gazelle_hlist.h b/src/include/gazelle_hlist.h
+index 86b5c6d..945df60 100644
+--- a/src/include/gazelle_hlist.h
++++ b/src/include/gazelle_hlist.h
+@@ -35,199 +35,174 @@
+ 
+ #include "gazelle_list.h"
+ 
+-//#if GAZELLE_TCP_PCB_HASH
++#define HLIST_QUICKLY_FIND 0
++
+ struct hlist_node {
+     /**
+      * @pprev: point the previous node's next pointer
+      */
+     struct hlist_node *next;
+     struct hlist_node **pprev;
++
++#if HLIST_QUICKLY_FIND
++    /* quickly find the hlist_head */
++    struct hlist_head *head;
++#endif /* HLIST_QUICKLY_FIND */
+ };
+ 
+ struct hlist_head {
+     struct hlist_node *first;
++#if HLIST_QUICKLY_FIND
++    struct hlist_node *tail;
++#endif /* HLIST_QUICKLY_FIND */
+ };
+ 
+-struct hlist_tail {
+-    struct hlist_node *end;
+-};
+-
+-struct hlist_ctl {
+-    struct hlist_head head;
+-    struct hlist_tail tail;
+-};
+-
+-#define INIT_HLIST_CTRL(ptr) {(ptr)->head.first = NULL; (ptr)->tail.end = NULL;}
+-#define INIT_HLIST_HEAD(ptr) ((ptr)->first = NULL)
+-#define INIT_HLIST_NODE(ptr) {(ptr)->next = NULL; (ptr)->pprev = NULL;}
++/**
++ * hlist_entry - iterate over list of given type
++ * @ptr:    the &hlist_node within the struct.
++ * @type:   the struct type.
++ * @member: the name of the hlist_node within the struct.
++ */
+ #define hlist_entry(ptr, type, member) \
+     container_of(ptr, type, member)
+ 
+ /**
+- * hlist_for_each_entry    - iterate over list of given type
+- * @tpos:    the type * to use as a loop cursor.
+- * @pos:    the &struct hlist_node to use as a loop cursor.
+- * @head:    the head for your list.
+- * @member:    the name of the hlist_node within the struct.
++ * hlist_for_each_entry - iterate over list of given type
++ * @pos:    the type * to use as a loop cursor.
++ * @head:   the head for your list.
++ * @member: the name of the hlist_node within the struct.
+  */
+-#define hlist_for_each_entry(tpos, pos, head, member) \
+-    for (pos = (head)->first; \
+-        pos && ({ tpos = hlist_entry(pos, typeof(*tpos), member); 1; }); \
+-        pos = (pos)->next)
++#define hlist_for_each_entry(pos, head, member) \
++    for (struct hlist_node *__node = (head)->first; \
++        __node && ({ pos = hlist_entry(__node, typeof(*pos), member); 1; }); \
++        __node = (__node)->next)
+ 
+-/**
+- * next must be != NULL
+- * add n node before next node
+- *
+- * @n: new node
+- * @next: node in the hlist
+- */
+-static inline void hlist_add_before(struct hlist_node *n, struct hlist_node *next)
++static inline void hlist_init_head(struct hlist_head *h)
+ {
+-    n->pprev = next->pprev;
+-    n->next = next;
+-    next->pprev = &n->next;
+-    *(n->pprev) = n;
++    h->first = NULL;
++#if HLIST_QUICKLY_FIND
++    h->tail = NULL;
++#endif /* HLIST_QUICKLY_FIND */
+ }
+ 
+-static inline int hlist_empty(const struct hlist_head *h)
++static inline void hlist_init_node(struct hlist_node *n)
+ {
+-    return !h->first;
++    n->next = NULL;
++    n->pprev = NULL;
++#if HLIST_QUICKLY_FIND
++    n->head = NULL;
++#endif /* HLIST_QUICKLY_FIND */
+ }
+ 
+-static inline int hlist_unhashed(const struct hlist_node *h)
++static inline int hlist_head_empty(const struct hlist_head *h)
+ {
+-    return !h->pprev;
++    return h->first == NULL;
+ }
+ 
+-static inline void hlist_del_init(struct hlist_node *n)
++static inline int hlist_node_null(const struct hlist_node *n)
+ {
+-    struct hlist_node *next = n->next;
+-    struct hlist_node **pprev = n->pprev;
+-
+-    if (pprev == NULL) {
+-        return;
+-    }
+-
+-    *pprev = next;
+-    if (next != NULL) {
+-        next->pprev = pprev;
+-    }
+-
+-    n->next = NULL;
+-    n->pprev = NULL;
++    return n->pprev == NULL;
+ }
+ 
+-static inline void hlist_ctl_del(struct hlist_ctl *ctl, struct hlist_node *n)
++static inline void hlist_del_node(struct hlist_node *n)
+ {
+-    if (ctl->head.first == ctl->tail.end) {
+-        ctl->head.first = NULL;
+-        ctl->tail.end = NULL;
++    if (hlist_node_null(n)) {
+         return;
+     }
+ 
+-    if (ctl->tail.end == n) {
+-        ctl->tail.end = (struct hlist_node *)n->pprev;
+-    }
+-
+-    hlist_del_init(n);
+-}
++    struct hlist_node *next = n->next;
++    struct hlist_node **pprev = n->pprev;
+ 
+-static inline struct hlist_node *hlist_pop_tail(struct hlist_ctl *ctl)
+-{
+-    if (hlist_empty(&ctl->head)) {
+-        return NULL;
++#if HLIST_QUICKLY_FIND
++    if (n->head->tail == n) {
++        if (n->head->first == n) {
++            n->head->tail = NULL;
++        } else {
++            n->head->tail = hlist_entry(pprev, struct hlist_node, next);
++        }
+     }
++#endif /* HLIST_QUICKLY_FIND */
+ 
+-    if (ctl->head.first == ctl->tail.end) {
+-        struct hlist_node *ret = ctl->tail.end;
+-        ctl->tail.end = NULL;
+-        ctl->head.first = NULL;
+-        return ret;
++    *pprev = next;
++    if (next != NULL) {
++        next->pprev = pprev;
+     }
+ 
+-    struct hlist_node *temp = ctl->tail.end;
+-
+-    struct hlist_node **ptailPrev = ctl->tail.end->pprev;
+-    *ptailPrev = NULL;
+-
+-    ctl->tail.end = (struct hlist_node *)ptailPrev;
+-    temp->pprev = NULL;
+-    return temp;
+-}
+-
+-static inline void hlist_add_after(struct hlist_node *n, struct hlist_node *next)
+-{
+-    next->next = n->next;
+-    n->next = next;
+-    next->pprev = &n->next;
+-    if (next->next) {
+-        next->next->pprev = &next->next;
+-    }
++    hlist_init_node(n);
+ }
+ 
+-static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *h)
++/**
++ * hlist_add_head - add node at the beginning of the hlist
++ * @n: new node
++ * @head: hlist head to add it after
++ */
++static inline void hlist_add_head(struct hlist_node *n, struct hlist_head *head)
+ {
+-    struct hlist_node *first = h->first;
++    struct hlist_node *first = head->first;
+ 
+     n->next = first;
+     if (first != NULL) {
+         first->pprev = &n->next;
+     }
+ 
+-    h->first = n;
+-    n->pprev = &h->first;
+-}
+-
+-static inline struct hlist_node *hlist_pop_head(struct hlist_ctl *ctl)
+-{
+-    if (hlist_empty(&ctl->head)) {
+-        return NULL;
+-    }
++    head->first = n;
++    n->pprev = &head->first;
+ 
+-    struct hlist_node *temp = ctl->head.first;
+-    hlist_ctl_del(ctl, temp);
+-    return temp;
++#if HLIST_QUICKLY_FIND
++    n->head = head;
++    if (head->tail == NULL)
++        head->tail = n;
++#endif /* HLIST_QUICKLY_FIND */
+ }
+ 
+-static inline void hlist_ctl_add_tail(struct hlist_ctl *ctl, struct hlist_node *node)
++/**
++ * hlist_add_before - add node before next node
++ * @n: new node
++ * @next: node in the hlist
++ */
++static inline void hlist_add_before(struct hlist_node *n, struct hlist_node *next)
+ {
+-    if (hlist_empty(&ctl->head)) {
+-        hlist_add_head(node, &ctl->head);
+-        ctl->tail.end = ctl->head.first;
+-        return;
+-    }
+-
+-    ctl->tail.end->next = node;
++    n->pprev = next->pprev;
++    n->next = next;
++    next->pprev = &n->next;
++    *(n->pprev) = n;
+ 
+-    node->pprev = &(ctl->tail.end->next);
+-    node->next = NULL;
+-    ctl->tail.end = node;
++#if HLIST_QUICKLY_FIND
++    n->head = next->head;
++#endif /* HLIST_QUICKLY_FIND */
+ }
+ 
+-static inline void hlist_ctl_add_head(struct hlist_node *node, struct hlist_ctl *ctl)
++/**
++ * hlist_add_after - add node after prev node
++ * @n: new node
++ * @prev: node in the hlist
++ */
++static inline void hlist_add_after(struct hlist_node *n, struct hlist_node *prev)
+ {
+-    hlist_add_head(node, &ctl->head);
+-    if (ctl->tail.end == NULL) {
+-        ctl->tail.end = ctl->head.first;
++    n->next = prev->next;
++    prev->next = n;
++    n->pprev = &prev->next;
++    if (n->next != NULL) {
++        n->next->pprev = &n->next;
+     }
+-}
+ 
+-static inline void hlist_ctl_add_before(struct hlist_node *n, struct hlist_node *next, struct hlist_ctl *ctl)
+-{
+-    hlist_add_before(n, next);
+-    if (next == ctl->head.first) {
+-        ctl->head.first = n;
+-    }
++#if HLIST_QUICKLY_FIND
++    n->head = prev->head;
++    if (prev->head->tail == prev)
++        prev->head->tail = n;
++#endif /* HLIST_QUICKLY_FIND */
+ }
+ 
+-static inline void hlist_ctl_add_after(struct hlist_node *n, struct hlist_node *next, struct hlist_ctl *ctl)
++#if HLIST_QUICKLY_FIND
++/**
++ * hlist_add_tail - add node at the tail of the hlist
++ * @n: new node
++ * @head: hlist head to add it tail
++ */
++static inline void hlist_add_tail(struct hlist_node *n, struct hlist_head *head)
+ {
+-    hlist_add_after(n, next);
+-    if (n == ctl->tail.end) {
+-        ctl->tail.end = next;
+-    }
++    hlist_add_after(n, head->tail);
+ }
+-//#endif /* GAZELLE_TCP_PCB_HASH */
++#endif /* HLIST_QUICKLY_FIND */
+ 
+ #endif /* _GAZELLE_HLIST_H_ */
+diff --git a/src/include/lwip/priv/tcp_priv.h b/src/include/lwip/priv/tcp_priv.h
+index 44200ff..6a9d3d9 100644
+--- a/src/include/lwip/priv/tcp_priv.h
++++ b/src/include/lwip/priv/tcp_priv.h
+@@ -494,7 +494,7 @@ static inline void vdev_unreg_done(const struct tcp_pcb *pcb)
+ 
+ #define TCP_RMV_HASH(pcbs, npcb)                   \
+   do {                                             \
+-    hlist_del_init(&(npcb)->tcp_node);             \
++    hlist_del_node(&(npcb)->tcp_node);             \
+   } while (0)
+ #endif /* GAZELLE_TCP_PCB_HASH */
+ 
+diff --git a/src/include/lwip/tcp.h b/src/include/lwip/tcp.h
+index 11ddd25..afe2cd1 100644
+--- a/src/include/lwip/tcp.h
++++ b/src/include/lwip/tcp.h
+@@ -478,9 +478,6 @@ static inline unsigned int jhash_3words(unsigned int a, unsigned int b, unsigned
+ 
+ #define TUPLE4_HASH_FN(laddr, lport, faddr, fport)	 jhash_3words(laddr, faddr,lport|(fport<<16))
+ 
+-#define tcppcb_hlist_for_each(tcppcb, node, list) \
+-  hlist_for_each_entry(tcppcb, node, list, tcp_node)
+-
+ #endif /* GAZELLE_TCP_PCB_HASH */
+ 
+ #if LWIP_EVENT_API
+-- 
+2.22.0.windows.1
+
