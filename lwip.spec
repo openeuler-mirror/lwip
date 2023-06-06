@@ -73,19 +73,7 @@ Patch9057:  0058-lwip-send-recv-thread-bind-numa.patch
 Patch9058:  0059-fix-last_unsent-last_unacked.patch
 Patch9059:  0060-lwip-add-udp-multicast.patch
 Patch9060:  0061-fix-pbuf-leak-in-udp-connection.patch
-Patch9061:  0062-cleancode-improving-makefile-readability.patch
-Patch9062:  0063-cleancode-remove-perf.patch
-Patch9063:  0064-cleancode-rename-gazelle-files-in-lwip.patch
-Patch9064:  0065-cleancode-refactor-lwipsock.h.patch
-Patch9065:  0066-cleancode-refactor-gazelle_posix_api.h.patch
-Patch9066:  0067-cleancode-refactor-gazelle_list.h.patch
-Patch9067:  0068-cleancode-refactor-gazelle_hlist.h.patch
-Patch9068:  0069-cleancode-refactor-options-define.patch
-Patch9069:  0070-cleancode-refactor-GAZELLE_TCP_PCB_HASH.patch
-Patch9070:  0071-cleancode-refactor-sys_now-and-lwip_ioctl.patch
-Patch9071:  0072-cleancode-refactor-OFFLOAD_CHECKSUM-GAZELLE_TCP_DATA.patch
-Patch9072:  0073-cleancode-refactor-memp.patch
-Patch9073:  0074-drop-netbuf-in-recv_udp-to-fix-mem-overflow.patch
+Patch9061:  0062-drop-netbuf-in-recv_udp-to-fix-mem-overflow.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -164,18 +152,6 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9059 -p1
 %patch9060 -p1
 %patch9061 -p1
-%patch9062 -p1
-%patch9063 -p1
-%patch9064 -p1
-%patch9065 -p1
-%patch9066 -p1
-%patch9067 -p1
-%patch9068 -p1
-%patch9069 -p1
-%patch9070 -p1
-%patch9071 -p1
-%patch9072 -p1
-%patch9073 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -191,6 +167,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Tue Jun 06 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-66
+- revert cleancode series patches
+
 * Mon May 29 2023 kircher <majun65@huawei.com> - 2.1.3-65
 - drop netbuf in recv_udp to fix mem overflow
 
