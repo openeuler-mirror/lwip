@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 67
+Release: 68
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -75,6 +75,7 @@ Patch9059:  0060-lwip-add-udp-multicast.patch
 Patch9060:  0061-fix-pbuf-leak-in-udp-connection.patch
 Patch9061:  0062-drop-netbuf-in-recv_udp-to-fix-mem-overflow.patch
 Patch9062:  0063-optimize-avoid-too-many-empty-acks-in-tcp_input.patch
+Patch9063:  0064-fix-udp-send-recv-in-multiple-queue.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -154,6 +155,7 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9060 -p1
 %patch9061 -p1
 %patch9062 -p1
+%patch9063 -p1
 
 %build
 cd %{_builddir}/%{name}-%{version}/src
@@ -169,6 +171,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Wed Jun 14 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-68
+- fix udp send/recv in mutiple queue
+
 * Thu Jun 07 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-67
 - optimize: avoid too many empty acks in tcp_input
 
