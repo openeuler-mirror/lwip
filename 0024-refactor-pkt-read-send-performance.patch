@@ -199,7 +199,7 @@ index b8a0d28..fc4a9fd 100644
 +        return 0;
 +    }
 +
-+    ENQUEUE_PTRS(r, &r[1], prod, obj_table, n, void *);
++    __rte_ring_enqueue_elems(r, prod, obj_table, sizeof(void *), n);
 +
 +    r->prod.tail = prod + n;
 +
@@ -220,7 +220,7 @@ index b8a0d28..fc4a9fd 100644
 +        return 0;
 +    }
 +
-+    DEQUEUE_PTRS(r, &r[1], cons, obj_table, n, void *);
++    __rte_ring_dequeue_elems(r, cons, obj_table, sizeof(void *), n);
 +
 +    r->cons.tail = cons + n;
 +
