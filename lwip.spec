@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 70
+Release: 71
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -91,75 +91,7 @@ lwip is a small independent implementation of the TCP/IP protocol suite.
 %prep
 %setup -n %{name}-%{version} -q
 find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
-
-%patch6001 -p1
-%patch6002 -p1
-%patch9000 -p1
-%patch9001 -p1
-%patch9002 -p1
-%patch9003 -p1
-%patch9004 -p1
-%patch9005 -p1
-%patch9006 -p1
-%patch9007 -p1
-%patch9008 -p1
-%patch9009 -p1
-%patch9010 -p1
-%patch9011 -p1
-%patch9012 -p1
-%patch9013 -p1
-%patch9014 -p1
-%patch9015 -p1
-%patch9016 -p1
-%patch9017 -p1
-%patch9018 -p1
-%patch9019 -p1
-%patch9020 -p1
-%patch9021 -p1
-%patch9022 -p1
-%patch9023 -p1
-%patch9024 -p1
-%patch9025 -p1
-%patch9026 -p1
-%patch9027 -p1
-%patch9028 -p1
-%patch9029 -p1
-%patch9030 -p1
-%patch9031 -p1
-%patch9032 -p1
-%patch9033 -p1
-%patch9034 -p1
-%patch9035 -p1
-%patch9036 -p1
-%patch9037 -p1
-%patch9038 -p1
-%patch9039 -p1
-%patch9040 -p1
-%patch9041 -p1
-%patch9042 -p1
-%patch9043 -p1
-%patch9044 -p1
-%patch9045 -p1
-%patch9046 -p1
-%patch9047 -p1
-%patch9048 -p1
-%patch9049 -p1
-%patch9050 -p1
-%patch9051 -p1
-%patch9052 -p1
-%patch9053 -p1
-%patch9054 -p1
-%patch9055 -p1
-%patch9056 -p1
-%patch9057 -p1
-%patch9058 -p1
-%patch9059 -p1
-%patch9060 -p1
-%patch9061 -p1
-%patch9062 -p1
-%patch9063 -p1
-%patch9064 -p1
-%patch9065 -p1
+%autopatch -p1
 
 %build
 #export DPDK_VERSION_1911=1
@@ -176,6 +108,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Thu Jun 15 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-71
+- patch -p1 automaition in lwip.spec
+
 * Thu Jun 15 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-70
 - adapt to dpdk-19.11 and dpdk-21.11
 
