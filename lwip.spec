@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 69
+Release: 70
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -77,6 +77,7 @@ Patch9061:  0062-drop-netbuf-in-recv_udp-to-fix-mem-overflow.patch
 Patch9062:  0063-optimize-avoid-too-many-empty-acks-in-tcp_input.patch
 Patch9063:  0064-fix-udp-send-recv-in-multiple-queue.patch
 Patch9064:  0065-fix-udp-recvmbox-size-not-set.patch
+Patch9065:  0066-adapt-to-dpdk-19.11-and-dpdk-21.11.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -158,8 +159,10 @@ find %{_builddir}/%{name}-%{version} -type f -exec dos2unix -q {} \;
 %patch9062 -p1
 %patch9063 -p1
 %patch9064 -p1
+%patch9065 -p1
 
 %build
+#export DPDK_VERSION_1911=1
 cd %{_builddir}/%{name}-%{version}/src
 %make_build
 
@@ -173,6 +176,9 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
+* Thu Jun 15 2023 Lemmy Huang <huangliming5@huawei.com> - 2.1.3-70
+- adapt to dpdk-19.11 and dpdk-21.11
+
 * Wed Jun 14 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-69
 - fix udp recvmbox size not set
 
