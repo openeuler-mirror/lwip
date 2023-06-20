@@ -4,7 +4,7 @@
 Summary: lwip is a small independent implementation of the TCP/IP protocol suite
 Name:    lwip
 Version: 2.1.3
-Release: 74
+Release: 73
 License: BSD
 URL:     http://savannah.nongnu.org/projects/lwip/
 Source0: http://download.savannah.nongnu.org/releases/lwip/%{name}-%{version}.zip
@@ -80,7 +80,6 @@ Patch9064:  0065-fix-udp-recvmbox-size-not-set.patch
 Patch9065:  0066-adapt-to-dpdk-19.11-and-dpdk-21.11.patch
 Patch9066:  0067-fix-null-pointer-when-all-zero-address-listen.patch
 Patch9067:  0068-enable-UDP-CKSUM-in-lwip.patch
-Patch9068:  0069-add-error-check-in-hugepage_init-and-sys_mbox_free.patch
 
 BuildRequires: gcc-c++ dos2unix dpdk-devel
 
@@ -111,9 +110,6 @@ cd %{_builddir}/%{name}-%{version}/src
 %{_libdir}/liblwip.a
 
 %changelog
-* Sun Jun 25 2023 jiangheng <jiangheng14@huawei.com> - 2.1.3-74
-- add error check in hugepage_init and sys_mbox_free
-
 * Wed Jun 21 2023 kircher <majun65@huawei.com> - 2.1.3-73
 - enable udp cksum in lwip
 
